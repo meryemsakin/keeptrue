@@ -34,9 +34,36 @@ all of one model's runs in a single file (e.g. `runs/claude-2026-09.json`).
 | `path` | file the step touched | `*_path` |
 | `diff` | unified-diff-ish text of the change | `*_in_diff` |
 | `exit_code` | exit status of a command | (informational) |
+| `result` | `recorded` (default), `ok`, `error`, or `unknown` | evidence confirmation |
+| `tool_use_id` | original tool call identifier | source review |
 
 `final_message` is read by `max_final_length`. `usage` and `success` feed the
 cost/reliability table. Anything a check doesn't read can be omitted.
+
+For backwards compatibility, manually supplied steps default to `recorded`:
+the caller asserts these events happened. The Claude Code adapter instead starts
+calls as `unknown`, joins their tool results by ID, and preserves failed or
+unconfirmed operations. An errored shell result with an explicit exit code proves
+the shell ran, not that every subcommand ran. An errored edit is not assumed to
+have made its proposed change. Matching unconfirmed evidence produces an unknown
+check verdict, excluded from adherence's denominator and counted separately.
+
+Path checks inspect all recorded paths by default. Add `tools: [edit]` to a path
+check to restrict it to editing tools normalized by the Claude Code adapter.
+Paths altered indirectly through a shell command are not reconstructed.
+
+Unknown task outcomes (`success: null` or omitted) are excluded from success rate
+and per-success costs. Both the token/cost numerator and success denominator use
+the same outcome-labeled subset. No known outcomes yields `n/a`; known outcomes
+with zero successes yield infinity. `tokens/run` still describes all recorded runs.
+
+The Claude Code adapter preserves the complete session ID, labels sessions with
+multiple models as `mixed`, ignores synthetic assistant notices, and collects the
+last non-synthetic assistant response. A later unfinished tool turn has no final
+message. Repeated streaming records with the same message ID contribute the
+maximum observed input/output counter once per message. Cache counters are not
+included, and wall-clock session duration includes idle periods. These fields
+must not be presented as a provider billing total or active execution time.
 
 ## Why so minimal?
 

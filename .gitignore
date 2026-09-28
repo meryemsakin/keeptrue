@@ -11,3 +11,6 @@ dist/
 
 # a keeptrue.yaml a user creates at the repo root (the fixture one is tracked)
 /keeptrue.yaml
+
+# Local audits contain original session transcripts and private review notes.
+.keeptrue/

@@ -73,6 +73,8 @@ def render(
             res = matrix[rule.id].get(m)
             adh = res.adherence if res else math.nan
             cell = Text(_pct(adh), style=_adherence_style(adh))
+            if res:
+                cell.append(f" (n={res.n}, ?={res.unknown})", style="dim")
             if (
                 m != baseline
                 and not math.isnan(base_adh)
@@ -84,6 +86,10 @@ def render(
         grid.add_row(*row)
 
     console.print(grid)
+    console.print(Text(
+        "n = decidable runs; ? = unknown evidence (excluded from the pass-rate denominator).",
+        style="dim",
+    ))
 
     # ---- regressions callout -------------------------------------------
     regressions = _collect_regressions(rules, models, matrix, baseline)
@@ -103,7 +109,7 @@ def render(
         console.print(
             Panel(
                 body,
-                title="[bold red]Silently dropped rules[/]",
+                title="[bold red]Observed adherence drops[/]",
                 border_style="red",
                 expand=False,
             )
@@ -111,7 +117,7 @@ def render(
     elif baseline and len(models) > 1:
         console.print(
             Panel(
-                Text("No rule regressed by more than 15 points. ✅", style="green"),
+                Text("No observed drop over 15 points among decidable scores.", style="green"),
                 border_style="green",
                 expand=False,
             )
@@ -143,6 +149,19 @@ def render(
         cost.add_row(*row)
 
     console.print(cost)
+    for m in models:
+        s = stats.get(m, {})
+        if s.get("success_known", s.get("runs")) != s.get("runs"):
+            console.print(Text(
+                f"{m}: task outcome known for {int(s['success_known'])}/{int(s['runs'])} runs. "
+                "Success and per-success costs use only those runs; unknown is not failure.",
+                style="dim",
+            ))
+    if len(models) > 1:
+        console.print(Text(
+            "Descriptive comparison only: task mix and rule applicability are not controlled.",
+            style="dim",
+        ))
 
     footer = note or (
         "Scores are computed deterministically from each run's tool calls and "
@@ -192,7 +211,7 @@ def _fmt_per_success(x: float) -> str:
 
 
 def _fmt_usd(x: float | None) -> str:
-    if x is None:
+    if x is None or math.isnan(x):
         return "n/a"
     if x == math.inf:
         return "∞"

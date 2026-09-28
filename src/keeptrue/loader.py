@@ -14,6 +14,15 @@ from .models import Step, Trajectory, Usage
 
 
 def _step(d: dict) -> Step:
+    if not isinstance(d, dict):
+        raise ValueError("each step must be an object")
+    if d.get("result", "recorded") not in ("recorded", "ok", "error", "unknown"):
+        raise ValueError("step result must be recorded, ok, error or unknown")
+    for name in ("command", "path", "diff", "tool", "tool_use_id"):
+        if d.get(name) is not None and not isinstance(d[name], str):
+            raise ValueError(f"step {name} must be a string or null")
+    if d.get("exit_code") is not None and type(d["exit_code"]) is not int:
+        raise ValueError("exit_code must be an integer or null")
     return Step(
         type=d.get("type", "tool_call"),
         tool=d.get("tool"),
@@ -21,11 +30,15 @@ def _step(d: dict) -> Step:
         path=d.get("path"),
         diff=d.get("diff"),
         exit_code=d.get("exit_code"),
+        result=d.get("result", "recorded"),
+        tool_use_id=d.get("tool_use_id"),
     )
 
 
 def _usage(d: dict | None) -> Usage:
     d = d or {}
+    if not isinstance(d, dict):
+        raise ValueError("usage must be an object or null")
     return Usage(
         input_tokens=int(d.get("input_tokens", 0)),
         output_tokens=int(d.get("output_tokens", 0)),
@@ -34,6 +47,17 @@ def _usage(d: dict | None) -> Usage:
 
 
 def _traj(d: dict) -> Trajectory:
+    if not isinstance(d, dict):
+        raise ValueError("each run must be an object")
+    for name in ("task_id", "model"):
+        if not isinstance(d.get(name), str) or not d[name]:
+            raise ValueError(f"run {name} must be a nonempty string")
+    if d.get("success") is not None and type(d["success"]) is not bool:
+        raise ValueError("success must be true, false or null")
+    if not isinstance(d.get("steps", []), list):
+        raise ValueError("run steps must be a list")
+    if not isinstance(d.get("final_message", ""), str):
+        raise ValueError("final_message must be a string")
     return Trajectory(
         task_id=d["task_id"],
         model=d["model"],

@@ -5,14 +5,10 @@ Claude Code writes one JSONL file per session under
     ~/.claude/projects/<sanitized-cwd>/<session-id>.jsonl
 
 where <sanitized-cwd> is the working directory with every '/' replaced by '-'.
-Each line is one event. We read the assistant events: their `tool_use` items
-(the commands run and files touched) and token `usage`, plus the final
-assistant text. That's everything the deterministic checks need — so you can
-score your *real* sessions against your rules at zero new API cost.
-
-The parsing is intentionally defensive (`.get` everywhere): the transcript
-schema evolves, and a field we don't recognize should be skipped, not crash a
-scan of 50 sessions.
+Each line is one event. Assistant tool calls are joined to user tool results;
+unconfirmed calls remain unknown. Message IDs deduplicate streaming usage.
+Malformed JSON is rejected instead of silently dropping potential violations.
+This is observed tool evidence, not a filesystem diff or a task-success oracle.
 """
 
 from __future__ import annotations
@@ -20,8 +16,11 @@ from __future__ import annotations
 import glob
 import json
 import os
+import re
+import warnings
 from collections import Counter
-from datetime import datetime
+from collections.abc import Callable
+from datetime import datetime, timezone
 from pathlib import Path
 
 from ..models import Step, Trajectory, Usage
@@ -36,14 +35,17 @@ def default_logs_dir(cwd: str | None = None) -> Path:
 
 def _events(path: str):
     with open(path, encoding="utf-8") as f:
-        for line in f:
+        for lineno, line in enumerate(f, 1):
             line = line.strip()
             if not line:
                 continue
             try:
-                yield json.loads(line)
-            except json.JSONDecodeError:
-                continue
+                event = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"invalid JSONL at {path}:{lineno}") from exc
+            if not isinstance(event, dict):
+                raise ValueError(f"expected an event object at {path}:{lineno}")
+            yield event
 
 
 def _added(text: str) -> str:
@@ -86,7 +88,16 @@ def _steps_from_content(content) -> list[Step]:
     for item in content:
         if isinstance(item, dict) and item.get("type") == "tool_use":
             name = (item.get("name") or "").lower()
-            steps.extend(_tool_to_steps(name, item.get("input") or {}))
+            inp = item.get("input") or {}
+            if not isinstance(inp, dict):
+                raise ValueError("tool_use input must be an object")
+            converted = _tool_to_steps(name, inp)
+            for step in converted:
+                step.tool_use_id = item.get("id")
+                if step.tool_use_id is not None and not isinstance(step.tool_use_id, str):
+                    raise ValueError("tool_use id must be a string")
+                step.result = "unknown"
+            steps.extend(converted)
     return steps
 
 
@@ -94,7 +105,7 @@ def _final_text(content, current: str) -> str:
     if isinstance(content, list):
         texts = [it.get("text", "") for it in content
                  if isinstance(it, dict) and it.get("type") == "text"]
-        return texts[-1] if texts else current
+        return "\n\n".join(texts) if texts else current
     if isinstance(content, str) and content.strip():
         return content
     return current
@@ -104,7 +115,8 @@ def _duration(times: list[str]) -> float:
     parsed = []
     for t in times:
         try:
-            parsed.append(datetime.fromisoformat(str(t).replace("Z", "+00:00")))
+            dt = datetime.fromisoformat(str(t).replace("Z", "+00:00"))
+            parsed.append(dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc))
         except (ValueError, AttributeError):
             pass
     return (max(parsed) - min(parsed)).total_seconds() if len(parsed) >= 2 else 0.0
@@ -114,40 +126,98 @@ def load_session(path: str) -> Trajectory | None:
     """Parse one session file into a Trajectory, or None if it has no signal."""
     steps: list[Step] = []
     models: Counter = Counter()
-    in_tok = out_tok = 0
+    usage_by_message: dict[str, dict] = {}
+    results: dict[str, dict] = {}
+    seen_tools: set[str] = set()
     final_message = ""
+    final_key = None
+    final_texts: list[str] = []
+    final_stop = None
+    final_has_tools = False
     session_id: str | None = None
     times: list[str] = []
 
-    for ev in _events(path):
+    for index, ev in enumerate(_events(path)):
         session_id = session_id or ev.get("sessionId")
         if ev.get("timestamp"):
             times.append(ev["timestamp"])
-        if ev.get("type") != "assistant":
-            continue
         msg = ev.get("message")
         if not isinstance(msg, dict):
+            continue
+        content = msg.get("content")
+        if ev.get("type") == "user" and isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "tool_result":
+                    ident = item.get("tool_use_id")
+                    if isinstance(ident, str) and ident:
+                        results[ident] = item
+        if ev.get("type") != "assistant" or msg.get("model") == "<synthetic>":
             continue
         model = msg.get("model")
         if model and model != "<synthetic>":  # Claude Code tags injected turns "<synthetic>"
             models[model] += 1
-        usage = msg.get("usage") or {}
-        in_tok += int(usage.get("input_tokens", 0) or 0)
-        out_tok += int(usage.get("output_tokens", 0) or 0)
-        content = msg.get("content")
-        steps.extend(_steps_from_content(content))
-        final_message = _final_text(content, final_message)
+        # Streaming records repeat message-level usage. Count each message once,
+        # retaining the greatest observed counter for partial usage snapshots.
+        key = msg.get("id") or f"record-{index}"
+        if key != final_key:
+            final_key = key
+            final_texts = []
+            final_stop = None
+            final_has_tools = False
+        if msg.get("stop_reason"):
+            final_stop = msg["stop_reason"]
+        text = _final_text(content, "")
+        if text and text not in final_texts:
+            final_texts.append(text)
+        usage = usage_by_message.setdefault(key, {})
+        for field in ("input_tokens", "output_tokens"):
+            usage[field] = max(usage.get(field, 0), int((msg.get("usage") or {}).get(field, 0) or 0))
+        if isinstance(content, list):
+            fresh = []
+            for item in content:
+                if not isinstance(item, dict) or item.get("type") != "tool_use":
+                    continue
+                final_has_tools = True
+                ident = item.get("id")
+                if ident and ident in seen_tools:
+                    continue
+                if ident:
+                    seen_tools.add(ident)
+                fresh.append(item)
+            steps.extend(_steps_from_content(fresh))
+
+    if final_stop != "tool_use" and not final_has_tools:
+        final_message = "\n\n".join(final_texts)
+
+    for step in steps:
+        result = results.get(step.tool_use_id)
+        if result is None:
+            continue
+        step.result = "error" if result.get("is_error") else "ok"
+        if step.tool == "bash":
+            body = result.get("content")
+            if isinstance(body, str):
+                match = re.match(r"Exit code[: ]+(-?\d+)\b", body)
+                if match:
+                    step.exit_code = int(match.group(1))
+            if step.exit_code is None and step.result == "ok":
+                step.exit_code = 0
 
     if not steps and not final_message:
         return None
 
     return Trajectory(
-        task_id=(session_id or Path(path).stem)[:12],
-        model=models.most_common(1)[0][0] if models else "unknown",
+        task_id=session_id or Path(path).stem,
+        model=(next(iter(models)) if len(models) == 1 else "mixed: " + ", ".join(sorted(models)))
+        if models else "unknown",
         run=0,
         steps=steps,
         final_message=final_message,
-        usage=Usage(input_tokens=in_tok, output_tokens=out_tok, duration_s=_duration(times)),
+        usage=Usage(
+            input_tokens=sum(u.get("input_tokens", 0) for u in usage_by_message.values()),
+            output_tokens=sum(u.get("output_tokens", 0) for u in usage_by_message.values()),
+            duration_s=_duration(times),
+        ),
         success=None,  # a log can't tell us whether the task actually passed
     )
 
@@ -161,24 +231,53 @@ def all_project_files() -> list[str]:
 def _iter_files(spec) -> list[str]:
     if isinstance(spec, (list, tuple)):
         return list(spec)
+    if Path(spec).is_file():
+        return [str(spec)]
     return glob.glob(os.path.join(str(spec), "*.jsonl"))
 
 
-def load_sessions(spec, last: int | None = None) -> list[Trajectory]:
-    """Load sessions oldest-first, from a directory, a list of files, or a glob.
+def load_sessions(
+    spec,
+    last: int | None = None,
+    *,
+    strict: bool = True,
+    on_error: Callable[[str, Exception], None] | None = None,
+) -> list[Trajectory]:
+    """Load sessions by file mtime, from a file, a directory, or a list of files.
 
-    Oldest-first means the earliest model becomes the report's baseline, so a
-    later model shows up as a regression against it (not the other way round).
+    Mtime is only a display ordering, not evidence of a model upgrade.
+    Strict loading is the default for curated audits. Exploratory scans may
+    skip invalid files, reporting every failure through on_error or a warning.
+    --last selects the newest files before parsing; skipped files are not replaced.
     """
-    files = sorted(_iter_files(spec), key=os.path.getmtime, reverse=True)  # newest first
+    if last is not None and last < 1:
+        raise ValueError("--last must be a positive integer")
+    def failed(path: str, exc: Exception) -> None:
+        if strict:
+            raise exc
+        if on_error is not None:
+            on_error(path, exc)
+        else:
+            warnings.warn(f"skipping session {path}: {exc}", RuntimeWarning, stacklevel=3)
+
+    candidates = []
+    for path in _iter_files(spec):
+        try:
+            candidates.append((os.path.getmtime(path), path))
+        except OSError as exc:
+            failed(path, exc)
+    files = [path for _, path in sorted(candidates, key=lambda item: item[0], reverse=True)]
     if last:
         files = files[:last]
     files.reverse()  # -> oldest first
 
     trajs: list[Trajectory] = []
-    for i, f in enumerate(files):
-        t = load_session(f)
+    for f in files:
+        try:
+            t = load_session(f)
+        except (OSError, ValueError) as exc:
+            failed(f, exc)
+            continue
         if t is not None:
-            t.task_id = f"{t.task_id}#{i}"  # keep each session distinct
             trajs.append(t)
     return trajs

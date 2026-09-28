@@ -42,7 +42,7 @@ def _run_report(config_path: str, runs_dir: str, note: str | None = None, consol
 def _cmd_demo(_args: argparse.Namespace) -> int:
     d = _demo_dir()
     note = (
-        "Demo data: recorded/illustrative runs bundled with the tool, so this "
+        "Demo data: hand-authored illustrative runs bundled with the tool, so this "
         "works offline and for free. `keeptrue check` scores your own runs."
     )
     return _run_report(str(d / "keeptrue.yaml"), str(d / "runs"), note=note)
@@ -72,18 +72,36 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             return 1
         spec, where = logs, logs
 
+    skipped = 0
+
+    def report_skipped(path: str, exc: Exception) -> None:
+        nonlocal skipped
+        skipped += 1
+        print(f"warning: skipped session {path}: {exc}", file=sys.stderr)
+
     # sessions with no identifiable model are noise (injected/degenerate) — drop them
-    trajs = [t for t in load_sessions(spec, last=args.last) if t.model != "unknown"]
+    try:
+        trajs = [t for t in load_sessions(
+            spec, last=args.last, strict=args.strict, on_error=report_skipped,
+        ) if t.model != "unknown"]
+    except (OSError, ValueError) as exc:
+        print(f"session scan failed: {exc}", file=sys.stderr)
+        return 1
     if not trajs:
-        print(f"no sessions with an identifiable model found in {where}", file=sys.stderr)
+        print(f"no usable sessions with an identifiable model found in {where}; "
+              f"skipped {skipped} unreadable or invalid file(s)", file=sys.stderr)
         return 1
 
     scenario, rules, prices = load_config(args.config)
     models, matrix = evaluate(rules, trajs)
     stats = cost_stats(trajs, prices)
     note = (f"Scored {len(trajs)} real Claude Code session(s) — no new API calls. "
-            "Caveat: a rule that didn't apply to a session still counts as a miss "
-            "here; tagging default-conflicting rules is on the roadmap.")
+            "Rule applicability is not inferred. Use `keeptrue audit` to compare "
+            "with reference labels. Tokens exclude cache read/write usage; session time "
+            "includes idle gaps. Mixed-model sessions are labeled explicitly.")
+    if skipped:
+        note = (f"Skipped {skipped} unreadable or invalid file(s); results cover only "
+                f"successfully loaded sessions. {note}")
     render(scenario or "your recent Claude Code sessions",
            rules, models, matrix, stats, note=note)
     return 0
@@ -121,6 +139,52 @@ def _cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_audit_prepare(args: argparse.Namespace) -> int:
+    import yaml
+
+    from .audit import prepare
+
+    try:
+        manifest = prepare(args.config, args.output, logs=args.logs, runs=args.runs,
+                           selection_note=args.selection_note)
+    except (OSError, ValueError, TypeError, KeyError, yaml.YAMLError) as exc:
+        print(f"audit preparation failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"Prepared {manifest['runs']} {manifest['unit']}(s), {manifest['rules']} rules "
+          f"in {args.output}.")
+    if manifest["excluded_files"]:
+        print(f"Excluded {manifest['excluded_files']} source file(s) without usable model evidence.")
+    print("Private snapshot: original transcripts and normalized runs are kept locally.")
+    print(f"Read {args.output}/review.md; independently fill {args.output}/labels.json.")
+    return 0
+
+
+def _cmd_audit_report(args: argparse.Namespace) -> int:
+    import json
+
+    import yaml
+
+    from .audit import compare, render_markdown
+
+    try:
+        result = compare(args.input)
+        root = Path(args.input).expanduser()
+        (root / "results.json").write_text(
+            json.dumps(result, indent=2, ensure_ascii=False, allow_nan=False) + "\n",
+            encoding="utf-8",
+        )
+        report = root / "report.md"
+        report.write_text(render_markdown(result), encoding="utf-8")
+    except (OSError, ValueError, TypeError, KeyError, yaml.YAMLError) as exc:
+        print(f"audit report failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"Wrote {report} and local results.json. Reference review: {result['status']}.")
+    if result["status"] != "complete":
+        print(f"{result['metrics']['pending']} labels still need review; metrics are provisional.")
+        return 2
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="keeptrue", description=__doc__)
     p.add_argument("--version", action="version", version=f"keeptrue {__version__}")
@@ -145,6 +209,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--all-projects", action="store_true",
                    help="score sessions across every Claude Code project, not just this repo")
     s.add_argument("--last", type=int, default=None, help="only the N most recent sessions")
+    s.add_argument("--strict", action="store_true",
+                   help="stop on the first unreadable or invalid session instead of warning and skipping")
     s.set_defaults(func=_cmd_scan)
 
     i = sub.add_parser("init", help="write a starter keeptrue.yaml")
@@ -153,6 +219,20 @@ def build_parser() -> argparse.ArgumentParser:
                    help="derive checks from an AGENTS.md/CLAUDE.md (deterministic, no model)")
     i.add_argument("--force", action="store_true")
     i.set_defaults(func=_cmd_init)
+
+    a = sub.add_parser("audit", help="validate checks against independently reviewed evidence")
+    audit = a.add_subparsers(dest="audit_command", required=True)
+    ap = audit.add_parser("prepare", help="freeze selected runs and create blank reference labels")
+    ap.add_argument("--config", default="keeptrue.yaml")
+    source = ap.add_mutually_exclusive_group(required=True)
+    source.add_argument("--logs", nargs="+", help="explicit Claude Code .jsonl files or directories")
+    source.add_argument("--runs", help="directory containing recorded trajectory JSON")
+    ap.add_argument("--output", default=".keeptrue/audits/pilot")
+    ap.add_argument("--selection-note", default="", help="why these sources were chosen")
+    ap.set_defaults(func=_cmd_audit_prepare)
+    ar = audit.add_parser("report", help="compare reference labels with current check predictions")
+    ar.add_argument("--input", default=".keeptrue/audits/pilot")
+    ar.set_defaults(func=_cmd_audit_report)
 
     return p
 

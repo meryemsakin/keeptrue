@@ -1,0 +1,79 @@
+{
+  "baseline_revision": "76195b5aeabc88b4182b508475bde9ecb5bcf162",
+  "snapshot_sha256": "ef9503e54e840157fe97e78c3f1f1be95682f2986ed8c03cbd34f74da4f81544",
+  "reviewer_kind": "agent",
+  "source": {
+    "sessions": 1,
+    "tool_requests": 145,
+    "bash_requests": 48,
+    "bash_with_execution_evidence": 33,
+    "bash_without_execution_evidence": 15,
+    "assistant_records_excluding_synthetic": 378,
+    "unique_assistant_message_ids": 158,
+    "mixed_models": true
+  },
+  "before": {
+    "input_tokens": 756,
+    "output_tokens": 786300,
+    "success_rate": 0.0,
+    "final_words": 9,
+    "predictions": {
+      "avoid-direct-pip": "fail",
+      "run-pytest": "pass",
+      "protect-migrations": "pass",
+      "concise-final": "pass",
+      "run-ruff": "fail",
+      "no-force-push": "pass",
+      "github-auth-probe": "pass",
+      "migration-validation": "fail",
+      "no-debug-prints": "fail"
+    }
+  },
+  "after": {
+    "input_tokens": 316,
+    "output_tokens": 291923,
+    "success_rate": null,
+    "final_words": 235,
+    "predictions": {
+      "avoid-direct-pip": "fail",
+      "run-pytest": "pass",
+      "protect-migrations": "pass",
+      "concise-final": "fail",
+      "run-ruff": "fail",
+      "no-force-push": "pass",
+      "github-auth-probe": "unknown",
+      "migration-validation": "fail",
+      "no-debug-prints": "fail"
+    }
+  },
+  "reference": {
+    "avoid-direct-pip": "fail",
+    "run-pytest": "pass",
+    "protect-migrations": "pass",
+    "concise-final": "fail",
+    "run-ruff": "fail",
+    "no-force-push": "pass",
+    "github-auth-probe": "fail",
+    "migration-validation": "not_applicable",
+    "no-debug-prints": "unknown"
+  },
+  "after_metrics": {
+    "total": 9,
+    "pending": 0,
+    "not_applicable": 1,
+    "unknown": 1,
+    "alarms_on_not_applicable": 1,
+    "applicable": 7,
+    "abstained": 1,
+    "abstained_violations": 1,
+    "tp": 3,
+    "fp": 0,
+    "fn": 0,
+    "tn": 3,
+    "precision": 1.0,
+    "recall": 0.75,
+    "decision_coverage": 0.8571428571428571,
+    "agreement_when_decided": 1.0
+  },
+  "limits": "One retrospectively selected session; agent-reviewed labels; raw transcripts private. Usage excludes cache reads/writes and is not a provider billing total."
+}

@@ -40,19 +40,25 @@ def evaluate(
             ts = by_model[model]
             passed = 0
             n = 0
+            unknown = 0
             evidence: list[str] = []
             for t in ts:
                 if rule.check is None:
+                    unknown += 1
+                    continue
+                out = run_check(rule.check, t)
+                if out.passed is None:
+                    unknown += 1
                     continue
                 n += 1
-                out = run_check(rule.check, t)
                 if out.passed:
                     passed += 1
                 elif out.evidence and len(evidence) < 3:
                     evidence.append(out.evidence)
             adherence = passed / n if n else math.nan
             matrix[rule.id][model] = RuleModelResult(
-                rule_id=rule.id, model=model, n=n, adherence=adherence, evidence=evidence
+                rule_id=rule.id, model=model, n=n, adherence=adherence,
+                evidence=evidence, unknown=unknown,
             )
 
     return models, matrix
@@ -66,14 +72,18 @@ def cost_stats(
     stats: "OrderedDict[str, dict[str, float]]" = OrderedDict()
 
     for model, ts in by_model.items():
-        successes = [t for t in ts if t.success]
+        known = [t for t in ts if t.success is not None]
+        successes = [t for t in known if t.success is True]
         n_succ = len(successes)
         total_tokens = sum(t.usage.total_tokens for t in ts)
+        known_tokens = sum(t.usage.total_tokens for t in known)
         row: dict[str, float] = {
             "runs": float(len(ts)),
-            "success_rate": (n_succ / len(ts)) if ts else math.nan,
+            "success_known": float(len(known)),
+            "success_rate": (n_succ / len(known)) if known else math.nan,
             "tokens_per_run": (total_tokens / len(ts)) if ts else math.nan,
-            "tokens_per_success": (total_tokens / n_succ) if n_succ else math.inf,
+            "tokens_per_success": ((known_tokens / n_succ) if n_succ else math.inf)
+            if known else math.nan,
             "avg_duration": mean([t.usage.duration_s for t in ts]) if ts else math.nan,
         }
 
@@ -85,7 +95,13 @@ def cost_stats(
                 for t in ts
             )
             row["usd_per_run"] = usd / len(ts) if ts else math.nan
-            row["usd_per_success"] = usd / n_succ if n_succ else math.inf
+            known_usd = sum(
+                t.usage.input_tokens / 1_000_000 * price.get("input", 0)
+                + t.usage.output_tokens / 1_000_000 * price.get("output", 0)
+                for t in known
+            )
+            row["usd_per_success"] = ((known_usd / n_succ) if n_succ else math.inf) \
+                if known else math.nan
 
         stats[model] = row
 

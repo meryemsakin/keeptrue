@@ -40,3 +40,11 @@ belong to the optional LLM judge, not here.
 - Format/lint touched files (`ruff format`, `ruff check`) if you have ruff.
 - Keep dependencies minimal (`rich`, `pyyaml`).
 - Small PRs with a test beat big ones without.
+
+## Reference audits
+
+Use `keeptrue audit prepare` to freeze selected recordings before labeling them.
+Never commit `.keeptrue/` or raw session logs. Keep synthetic test fixtures clearly
+identified; do not describe them as captured real-world evidence. A new real-data
+case study should disclose selection, reviewer provenance, excluded cases and
+remaining disagreements. See [the audit guide](docs/reference-audit.md).
