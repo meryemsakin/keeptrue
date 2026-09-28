@@ -18,6 +18,39 @@ def _commands(t: Trajectory) -> list[str]:
     return [s.command for s in t.steps if s.command]
 
 
+_HEREDOC = re.compile(r"(?<!<)<<(?!<)-?[ \t]*(['\"]?)([A-Za-z_]\w*)\1")
+_SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "fish", "ssh"}
+_PREFIXES = {"env", "sudo", "time", "exec", "nohup", "command"}
+
+
+def _heredoc_reader(before: str) -> str:
+    """The program receiving a heredoc: 'python' in `cd x && .venv/bin/python - <<'PY'`."""
+    words = [w for w in re.split(r"&&|\|\||[;|]", before)[-1].split()
+             if "=" not in w and w not in _PREFIXES]
+    return words[0].rsplit("/", 1)[-1] if words else ""
+
+
+def _shell_text(command: str) -> str:
+    """Drop heredoc bodies fed to a non-shell program (python, cat, node, ...).
+
+    That text is data for another program, so a command regex over it matches
+    words the shell never runs. Bodies fed to a shell (bash, sh, ssh, ...) stay.
+    """
+    lines = command.split("\n")
+    kept: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        kept.append(line)
+        i += 1
+        opener = _HEREDOC.search(line)
+        if opener and _heredoc_reader(line[:opener.start()]) not in _SHELLS:
+            while i < len(lines) and lines[i].strip() != opener.group(2):
+                i += 1
+            i += 1  # the terminator line
+    return "\n".join(kept)
+
+
 def _quote(value: str, match: re.Match, field: str) -> str:
     """Quote what matched: for a diff, the matching line, not the change's first line."""
     if field != "diff":
@@ -36,6 +69,8 @@ def _match_signal(check: Check, t: Trajectory, field: str, required: bool) -> Ch
         if tools is not None and step.tool not in tools:
             continue
         value = getattr(step, field)
+        if value and field == "command":
+            value = _shell_text(value)
         match = pat.search(value) if value else None
         if match is None:
             continue

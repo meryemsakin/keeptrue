@@ -23,7 +23,10 @@ and a synthetic session-limit notice replaced the real final response. Both
 are addressed in this revision. The [case study](experiments/02-real-session-audit/)
 includes before/after results, the remaining applicability false alarm, and
 reproduction instructions. It is a retrospective, agent-reviewed pilot on one
-private session, not independent validation or a model benchmark.
+private session, not independent validation or a model benchmark. A first
+[Codex vs Claude Code scan](experiments/03-cross-agent-heredoc/) of the same repo
+then got three Codex cells wrong, because analysis scripts quoted the rule
+patterns inside heredocs; command checks now ignore that data.
 
 ![keeptrue demo — observed adherence drops, with decidable-run and unknown counts](docs/demo-animated.svg)
 
@@ -92,7 +95,8 @@ followed, here, now, after this upgrade."**
 
 The checks are **fully deterministic** and never call a model. Evidence explains
 which recorded signal matched a check. Reproducibility does not guarantee
-semantic correctness: `echo pytest` still matches a broad `pytest` regex.
+semantic correctness: heredoc bodies fed to non-shell programs (such as
+`python - <<'PY'`) are ignored, but `echo pytest` still matches a broad `pytest` regex.
 An optional LLM judge is planned and is not implemented.
 
 Here's the full report `keeptrue demo` prints — all eight rules, the observed-drops
@@ -102,12 +106,15 @@ callout, and the cost/reliability table:
 
 ## Score your own agent
 
-**Fastest path — score your real Claude Code sessions.** No new API calls: it
-reads the JSONL logs Claude Code already wrote to `~/.claude/projects/…`.
+**Fastest path — score your real Claude Code or Codex sessions.** No new API
+calls: it reads the JSONL logs the agents already wrote (`~/.claude/projects/…`,
+`~/.codex/sessions/…`).
 
 ```bash
 keeptrue init --from CLAUDE.md  # turn your rules file into checks (deterministic, no model)
-keeptrue scan                   # scores your recent Claude Code sessions in this repo
+keeptrue scan                   # your recent Claude Code sessions in this repo
+keeptrue scan --agent codex     # this repo's Codex sessions (matched by working directory)
+keeptrue scan --agent all       # both agents, side by side
 keeptrue scan --last 50         # ...or your last 50 (--all-projects for every repo)
 keeptrue scan --strict          # stop on the first unreadable or invalid log
 ```
@@ -116,7 +123,10 @@ The scan does not infer rule applicability. A required command can still cause
 an alert in a session where the rule did not apply. `audit` lets you measure
 these false alarms against explicit reference labels. Missing tool results are
 unknown; missing task outcomes are `n/a`, not 0% success. Sessions containing
-multiple models are labeled `mixed` rather than attributed to one model.
+multiple models are labeled `mixed` rather than attributed to one model. For
+Codex, commands and file edits come from the rollout's execution records (exit
+codes and per-file diffs); code-mode JavaScript never counts as a confirmed
+command on its own.
 
 By default, `scan` warns on stderr for each unreadable or invalid file and scores
 the remaining sessions. The report includes the skipped-file count; it never
@@ -154,8 +164,7 @@ partial reviews stay marked incomplete. See the [reference-audit guide](docs/ref
 }
 ```
 
-…then `keeptrue check --runs ./runs`. (A Codex adapter is on the roadmap; the
-Claude Code one ships today via `keeptrue scan`.)
+…then `keeptrue check --runs ./runs`.
 
 ## What this is *not*
 
@@ -167,14 +176,16 @@ Claude Code one ships today via `keeptrue scan`.)
   cheap, honest, and reproducible. Garbage rules in, garbage scores out.
 - **Not an execution or billing oracle.** A successful shell tool result does
   not prove every command in a pipeline ran. Edit payloads are not the final
-  committed tree. Claude Code usage deduplicates message IDs but excludes cache
-  read/write counters; session duration includes idle gaps.
+  committed tree. Usage is counted once per message (Claude Code) or response
+  (Codex) and excludes cached input; Codex output includes reasoning tokens.
+  Session duration includes idle gaps.
 
 ## Roadmap
 
 - [x] **Claude Code session adapter** (`keeptrue scan`) — score your existing
   local session logs, no JSON by hand, zero new API cost.
-- [ ] **Codex session adapter** — same, for Codex logs.
+- [x] **Codex session adapter** (`scan --agent codex|all`) — execution records,
+  exit codes and per-file diffs from Codex rollouts.
 - [ ] **Tag rules as default-conflicting** — surface adherence for the rules
   that cut against the model's defaults, since those are the ones that carry
   signal ([Harness-IF](https://arxiv.org/abs/2608.11727)).

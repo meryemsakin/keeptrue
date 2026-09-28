@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
+from .adapters import detect, load_any
 from .adapters.claude_code import load_sessions
 from .checks import REGISTRY, run_check
 from .config import load_config
@@ -110,10 +111,13 @@ def prepare(config: str, output: str, *, logs: list[str] | None = None,
             source_hashes.add(digest)
             (root / relative).write_bytes(data)
             hashes[relative] = digest
+        source_kind = "trajectory_json"
         if logs:
-            loaded = load_sessions(str(root / "sources"), strict=True)
+            loaded = load_sessions(str(root / "sources"), strict=True, loader=load_any)
             trajectories = [t for t in loaded if t.model != "unknown"]
             excluded = len(sources) - len(trajectories)
+            formats = {detect(str(p)) for p in (root / "sources").glob("*.jsonl")}
+            source_kind = formats.pop() if len(formats) == 1 else "mixed"
         else:
             trajectories = load_runs(str(root / "sources"))
             excluded = 0
@@ -130,7 +134,7 @@ def prepare(config: str, output: str, *, logs: list[str] | None = None,
             "schema_version": 1,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "keeptrue_version": __version__,
-            "source_kind": "claude_code" if logs else "trajectory_json",
+            "source_kind": source_kind,
             "unit": "session" if logs else "run",
             "selection_note": selection_note,
             "selected_files": len(sources),

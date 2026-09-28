@@ -52,37 +52,79 @@ def _cmd_check(args: argparse.Namespace) -> int:
     return _run_report(args.config, args.runs)
 
 
+def _scan_selection(args: argparse.Namespace):
+    """Session files (or a path) for the chosen agent(s), plus a description."""
+    import glob
+
+    from .adapters import claude_code, codex
+
+    agents = ("claude", "codex") if args.agent == "all" else (args.agent,)
+    if args.logs:
+        logs = Path(args.logs).expanduser()
+        if logs.is_dir() and "codex" in agents:  # Codex nests rollouts by date
+            return glob.glob(str(logs / "**" / "*.jsonl"), recursive=True), str(logs)
+        return str(logs), str(logs)
+    files: list[str] = []
+    where: list[str] = []
+    if "claude" in agents:
+        if args.all_projects:
+            files += claude_code.all_project_files()
+            where.append("all Claude Code projects")
+        else:
+            logs = claude_code.default_logs_dir(args.project)
+            files += glob.glob(str(logs / "*.jsonl"))
+            where.append(str(logs))
+    if "codex" in agents:
+        if args.all_projects:
+            files += codex.all_session_files()
+            where.append("all Codex sessions")
+        else:
+            files += codex.project_session_files(args.project)
+            where.append(f"Codex sessions in {args.project or Path.cwd()}")
+    return files, " + ".join(where)
+
+
 def _cmd_scan(args: argparse.Namespace) -> int:
-    from .adapters.claude_code import all_project_files, default_logs_dir, load_sessions
+    from collections import Counter
+
+    from .adapters import claude_code, codex, detect
 
     if not Path(args.config).exists():
         print(f"config not found: {args.config}\nRun `keeptrue init` to create one.",
               file=sys.stderr)
         return 1
-
-    if args.all_projects:
-        spec: object = all_project_files()
-        where = "all Claude Code projects"
-    else:
-        logs = args.logs or str(default_logs_dir(args.project))
-        if not Path(logs).exists():
+    if args.logs and not Path(args.logs).expanduser().exists():
+        print(f"no session logs found at:\n  {args.logs}", file=sys.stderr)
+        return 1
+    if args.agent == "claude" and not (args.logs or args.all_projects):
+        logs = claude_code.default_logs_dir(args.project)
+        if not logs.exists():
             print(f"no Claude Code logs found at:\n  {logs}\n"
-                  f"Point --logs at your session .jsonl files, use --all-projects, "
-                  f"or run from a repo where you've used Claude Code.", file=sys.stderr)
+                  f"Point --logs at your session .jsonl files, use --all-projects or "
+                  f"--agent codex, or run from a repo where you've used Claude Code.",
+                  file=sys.stderr)
             return 1
-        spec, where = logs, logs
+    spec, where = _scan_selection(args)
 
     skipped = 0
+    kinds: dict[int, str] = {}
 
     def report_skipped(path: str, exc: Exception) -> None:
         nonlocal skipped
         skipped += 1
         print(f"warning: skipped session {path}: {exc}", file=sys.stderr)
 
+    def load(path: str):
+        kind = detect(path)
+        run = (codex if kind == "codex" else claude_code).load_session(path)
+        if run is not None:
+            kinds[id(run)] = kind
+        return run
+
     # sessions with no identifiable model are noise (injected/degenerate) — drop them
     try:
-        trajs = [t for t in load_sessions(
-            spec, last=args.last, strict=args.strict, on_error=report_skipped,
+        trajs = [t for t in claude_code.load_sessions(
+            spec, last=args.last, strict=args.strict, on_error=report_skipped, loader=load,
         ) if t.model != "unknown"]
     except (OSError, ValueError) as exc:
         print(f"session scan failed: {exc}", file=sys.stderr)
@@ -92,17 +134,29 @@ def _cmd_scan(args: argparse.Namespace) -> int:
               f"skipped {skipped} unreadable or invalid file(s)", file=sys.stderr)
         return 1
 
+    counts = Counter(kinds.get(id(t), "claude_code") for t in trajs)
+    if counts["codex"] and counts["claude_code"]:
+        scored = (f"{len(trajs)} real session(s) — Claude Code: {counts['claude_code']}, "
+                  f"Codex: {counts['codex']}")
+    elif counts["codex"]:
+        scored = f"{len(trajs)} real Codex session(s)"
+    else:
+        scored = f"{len(trajs)} real Claude Code session(s)"
+
     scenario, rules, prices = load_config(args.config)
     models, matrix = evaluate(rules, trajs)
     stats = cost_stats(trajs, prices)
-    note = (f"Scored {len(trajs)} real Claude Code session(s) — no new API calls. "
+    note = (f"Scored {scored} — no new API calls. "
             "Rule applicability is not inferred. Use `keeptrue audit` to compare "
             "with reference labels. Tokens exclude cache read/write usage; session time "
             "includes idle gaps. Mixed-model sessions are labeled explicitly.")
+    if counts["codex"]:
+        note += (" Codex output tokens include reasoning; code-mode `exec` JavaScript is "
+                 "kept as unconfirmed command evidence.")
     if skipped:
         note = (f"Skipped {skipped} unreadable or invalid file(s); results cover only "
                 f"successfully loaded sessions. {note}")
-    render(scenario or "your recent Claude Code sessions",
+    render(scenario or "your recent coding-agent sessions",
            rules, models, matrix, stats, note=note)
     return 0
 
@@ -199,15 +253,17 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--runs", required=True, help="directory of run JSON files")
     c.set_defaults(func=_cmd_check)
 
-    s = sub.add_parser("scan", help="score your real Claude Code sessions (no new API calls)")
+    s = sub.add_parser("scan", help="score your real Claude Code / Codex sessions (no new API calls)")
     s.add_argument("--config", default="keeptrue.yaml",
                    help="path to keeptrue.yaml (default: ./keeptrue.yaml)")
+    s.add_argument("--agent", choices=("claude", "codex", "all"), default="claude",
+                   help="whose session logs to read (default: claude); 'all' combines both")
     s.add_argument("--logs", default=None,
-                   help="dir of session .jsonl files (default: Claude Code logs for this cwd)")
+                   help="a session .jsonl file or directory; Claude Code vs Codex is detected per file")
     s.add_argument("--project", default=None,
-                   help="cwd whose Claude Code logs to score (default: current dir)")
+                   help="repo whose sessions to score (default: current dir)")
     s.add_argument("--all-projects", action="store_true",
-                   help="score sessions across every Claude Code project, not just this repo")
+                   help="score every project's sessions for the chosen agent(s), not just this repo")
     s.add_argument("--last", type=int, default=None, help="only the N most recent sessions")
     s.add_argument("--strict", action="store_true",
                    help="stop on the first unreadable or invalid session instead of warning and skipping")

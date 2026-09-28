@@ -12,7 +12,8 @@ the tool is how you reproduce them on your own setup.
 |---|---|---|
 | [01](01-guardrail-bypass-across-formats/) | Tool-permission rules enforced on one API format were silently skipped on another | upstream PR submitted |
 | [02](02-real-session-audit/) | A real development session exposed false passes and duplicated token accounting in keeptrue | local pilot; agent-reviewed; raw data private |
-| 03 | *(next)* Which `AGENTS.md` lines actually change agent behavior — and which just burn tokens | planned |
+| [03](03-cross-agent-heredoc/) | A first Codex vs Claude Code scan got 3 of 7 Codex cells wrong: analysis scripts quoted the rule patterns in heredocs | fixed; one session per agent; raw data private |
+| 04 | *(next)* Which `AGENTS.md` lines actually change agent behavior — and which just burn tokens | planned |
 
 Each experiment folder documents the available setup, results, limitations and
 reproduction status. A proposed reproduction is not a completed experiment.

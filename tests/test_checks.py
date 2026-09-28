@@ -1,5 +1,5 @@
 from keeptrue.checks import run_check
-from keeptrue.models import Check, Step, Trajectory, Usage
+from keeptrue.models import Check, Step, Trajectory
 
 
 def traj(**kw) -> Trajectory:
@@ -75,3 +75,29 @@ def test_diff_evidence_quotes_the_matching_line():
                     traj(steps=[Step(diff=diff)]))
     assert out.passed is False
     assert out.evidence == "diff matched: +    print('debug', y)"
+
+
+FORCE_PUSH = Check("forbidden_command", {"pattern": r"git push\b.*(--force|-f\b)"})
+PIP = Check("forbidden_command", {"pattern": r"\bpip install\b"})
+
+
+def test_heredoc_body_fed_to_python_is_data_not_a_command():
+    script = ".venv/bin/python - <<'PY'\nprint('No git push with --force or -f appears.')\nPY"
+    assert run_check(FORCE_PUSH, traj(steps=[Step(command=script)])).passed is True
+
+
+def test_commands_after_a_data_heredoc_still_count():
+    script = "cat > notes.txt <<EOF\npip install is banned\nEOF\npip install requests"
+    out = run_check(PIP, traj(steps=[Step(command=script)]))
+    assert out.passed is False and "pip install requests" in out.evidence
+    assert "is banned" not in out.evidence
+
+
+def test_heredoc_fed_to_a_shell_is_still_checked():
+    for script in ("bash <<'EOF'\npip install x\nEOF", "ssh box bash <<EOF\npip install x\nEOF"):
+        assert run_check(PIP, traj(steps=[Step(command=script)])).passed is False
+
+
+def test_here_string_is_not_mistaken_for_a_heredoc():
+    script = 'grep x <<< "EOF"\npip install y'
+    assert run_check(PIP, traj(steps=[Step(command=script)])).passed is False

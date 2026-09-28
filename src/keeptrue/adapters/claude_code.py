@@ -14,16 +14,16 @@ This is observed tool evidence, not a filesystem diff or a task-success oracle.
 from __future__ import annotations
 
 import glob
-import json
 import os
 import re
 import warnings
 from collections import Counter
 from collections.abc import Callable
-from datetime import datetime, timezone
 from pathlib import Path
 
 from ..models import Step, Trajectory, Usage
+from ._jsonl import duration as _duration
+from ._jsonl import read_events as _events
 
 
 def default_logs_dir(cwd: str | None = None) -> Path:
@@ -31,21 +31,6 @@ def default_logs_dir(cwd: str | None = None) -> Path:
     cwd = cwd or os.getcwd()
     sanitized = cwd.replace("/", "-")
     return Path.home() / ".claude" / "projects" / sanitized
-
-
-def _events(path: str):
-    with open(path, encoding="utf-8") as f:
-        for lineno, line in enumerate(f, 1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"invalid JSONL at {path}:{lineno}") from exc
-            if not isinstance(event, dict):
-                raise ValueError(f"expected an event object at {path}:{lineno}")
-            yield event
 
 
 def _added(text: str) -> str:
@@ -109,17 +94,6 @@ def _final_text(content, current: str) -> str:
     if isinstance(content, str) and content.strip():
         return content
     return current
-
-
-def _duration(times: list[str]) -> float:
-    parsed = []
-    for t in times:
-        try:
-            dt = datetime.fromisoformat(str(t).replace("Z", "+00:00"))
-            parsed.append(dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc))
-        except (ValueError, AttributeError):
-            pass
-    return (max(parsed) - min(parsed)).total_seconds() if len(parsed) >= 2 else 0.0
 
 
 def load_session(path: str) -> Trajectory | None:
@@ -242,6 +216,7 @@ def load_sessions(
     *,
     strict: bool = True,
     on_error: Callable[[str, Exception], None] | None = None,
+    loader: Callable[[str], Trajectory | None] | None = None,
 ) -> list[Trajectory]:
     """Load sessions by file mtime, from a file, a directory, or a list of files.
 
@@ -249,6 +224,8 @@ def load_sessions(
     Strict loading is the default for curated audits. Exploratory scans may
     skip invalid files, reporting every failure through on_error or a warning.
     --last selects the newest files before parsing; skipped files are not replaced.
+    `loader` parses one file (default: this module's Claude Code parser); pass
+    `keeptrue.adapters.load_any` to accept Claude Code and Codex logs together.
     """
     if last is not None and last < 1:
         raise ValueError("--last must be a positive integer")
@@ -274,7 +251,7 @@ def load_sessions(
     trajs: list[Trajectory] = []
     for f in files:
         try:
-            t = load_session(f)
+            t = (loader or load_session)(f)
         except (OSError, ValueError) as exc:
             failed(f, exc)
             continue

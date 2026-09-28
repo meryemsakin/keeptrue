@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Codex CLI adapter. `scan --agent codex` scores this repo's Codex sessions
+  (matched by the recorded working directory); `--agent all` combines Claude Code
+  and Codex. The log format is detected per file, so `--logs` and `audit prepare`
+  accept either. Newer rollouts use `CommandExecution`/`FileChange` records as
+  evidence; older ones use `exec_command` output and `apply_patch` envelopes.
 - `scan --strict` for fail-fast imports. Default exploratory scans report each
   unreadable or malformed session and continue with the remaining files.
 - Local `audit prepare` and `audit report`: frozen input snapshots, blank reference
@@ -13,6 +18,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - A retrospective real-session case study with a reproducible pre-change comparison.
 
 ### Fixed
+- Command checks ignore heredoc bodies fed to non-shell programs (for example
+  `python - <<'PY'`). They matched analysis scripts that quoted a rule's pattern
+  (see experiments/03).
+- Diff evidence quotes the matching line instead of the change's first line.
 - Claude Code tool requests are joined with their results; unconfirmed execution
   and errored edits no longer provide confident evidence of completed actions.
 - Streaming message usage is deduplicated, synthetic notices do not replace the
