@@ -1,0 +1,50 @@
+scenario: 8 common AGENTS.md rules · agent-v1-old vs agent-v2-new · 3 tasks × 3 runs
+prices:
+  agent-v1-old:
+    input: 3.0
+    output: 15.0
+  agent-v2-new:
+    input: 1.0
+    output: 5.0
+rules:
+- id: use-uv
+  text: Use uv, never `pip install`
+  check:
+    kind: forbidden_command
+    pattern: \bpip install\b
+- id: run-tests
+  text: Always run pytest before finishing
+  check:
+    kind: required_command
+    pattern: \bpytest\b
+- id: protect-migrations
+  text: Never edit files under migrations/
+  check:
+    kind: forbidden_path
+    pattern: (^|/)migrations/
+- id: concise-summary
+  text: Keep the final summary under 80 words
+  check:
+    kind: max_final_length
+    unit: words
+    limit: 80
+- id: no-debug-prints
+  text: No print() debug statements in the diff
+  check:
+    kind: forbidden_in_diff
+    pattern: ^\+.*\bprint\(
+- id: no-stuck-loops
+  text: Don't retry the same failing command
+  check:
+    kind: no_repeat_loops
+    threshold: 3
+- id: format-with-ruff
+  text: Format touched files with ruff
+  check:
+    kind: required_command
+    pattern: \bruff\b
+- id: no-force-push
+  text: Never git push --force
+  check:
+    kind: forbidden_command
+    pattern: git push\b.*(--force|-f\b)
