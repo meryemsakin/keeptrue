@@ -1,8 +1,9 @@
 # Trajectory format
 
-A *run* (trajectory) records what an agent did on one task. keeptrue scores
-runs; it does not produce them. You capture them from your own harness (Claude
-Code, Codex, a custom agent loop) and drop them in a directory as JSON.
+A *run* (trajectory) records what an agent did on one task. `check` scores
+recorded runs supplied by your own harness (Claude Code, Codex, a custom agent
+loop). The experimental `ablate` workflow has a separate frozen-plan format;
+see [instruction experiments](instruction-experiments.md).
 
 Each JSON file is **either one run object or a list of runs**, so you can keep
 all of one model's runs in a single file (e.g. `runs/claude-2026-09.json`).
@@ -37,7 +38,7 @@ all of one model's runs in a single file (e.g. `runs/claude-2026-09.json`).
 | `result` | `recorded` (default), `ok`, `error`, or `unknown` | evidence confirmation |
 | `tool_use_id` | original tool call identifier | source review |
 
-`final_message` is read by `max_final_length`. `usage` and `success` feed the
+`final_message` is read by `max_final_length` and `*_in_final`. `usage` and `success` feed the
 cost/reliability table. Anything a check doesn't read can be omitted.
 
 For backwards compatibility, manually supplied steps default to `recorded`:
@@ -55,7 +56,14 @@ Paths altered indirectly through a shell command are not reconstructed.
 Unknown task outcomes (`success: null` or omitted) are excluded from success rate
 and per-success costs. Both the token/cost numerator and success denominator use
 the same outcome-labeled subset. No known outcomes yields `n/a`; known outcomes
-with zero successes yield infinity. `tokens/run` still describes all recorded runs.
+with zero successes and complete usage yield infinity.
+
+Omitted/null token counts and durations remain unknown. Explicit zero is an
+observation. Token counts must be nonnegative integers; duration must be a finite
+nonnegative number. `tokens/run` uses only runs with both input and output counts,
+and average time uses recorded durations; the report shows their coverage.
+Per-success token/cost estimates require complete usage for **every** run with a
+known outcome. Missing usage on a failed run cannot silently make success cheaper.
 
 The Claude Code adapter preserves the complete session ID, labels sessions with
 multiple models as `mixed`, ignores synthetic assistant notices, and collects the

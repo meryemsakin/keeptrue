@@ -36,3 +36,7 @@ Issues = "https://github.com/meryemsakin/keeptrue/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/keeptrue"]
+
+[tool.pytest.ini_options]
+# experiments/04 ships a sandbox project whose tests fail on purpose
+testpaths = ["tests"]

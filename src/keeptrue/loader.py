@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import glob
 import json
+import math
 import os
 
 from .models import Step, Trajectory, Usage
@@ -36,13 +37,24 @@ def _step(d: dict) -> Step:
 
 
 def _usage(d: dict | None) -> Usage:
-    d = d or {}
+    d = {} if d is None else d
     if not isinstance(d, dict):
         raise ValueError("usage must be an object or null")
+    for name in ("input_tokens", "output_tokens", "duration_s"):
+        value = d.get(name)
+        if value is None:
+            continue
+        numeric = (
+            type(value) in (int, float) if name == "duration_s" else type(value) is int
+        )
+        if not numeric or value < 0 or not math.isfinite(value):
+            raise ValueError(
+                f"usage {name} must be a finite nonnegative number or null"
+            )
     return Usage(
-        input_tokens=int(d.get("input_tokens", 0)),
-        output_tokens=int(d.get("output_tokens", 0)),
-        duration_s=float(d.get("duration_s", 0.0)),
+        input_tokens=d.get("input_tokens"),
+        output_tokens=d.get("output_tokens"),
+        duration_s=d.get("duration_s"),
     )
 
 

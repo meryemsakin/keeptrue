@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Experimental `ablate plan/run/report`: explicit instruction units, frozen Git
+  snapshots and standalone verifiers, replicate-specific identities, bounded
+  Codex runner, private artifacts, paired task-weighted summaries and offline
+  HTML/JSON/Markdown. Includes an explicitly synthetic zero-cost process demo.
 - Codex CLI adapter. `scan --agent codex` scores this repo's Codex sessions
   (matched by the recorded working directory); `--agent all` combines Claude Code
   and Codex. The log format is detected per file, so `--logs` and `audit prepare`
@@ -18,6 +22,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - A retrospective real-session case study with a reproducible pre-change comparison.
 
 ### Fixed
+- Missing token/time observations remain unknown in adapters and imported runs;
+  reports show coverage and refuse partial per-success cost estimates.
+- Codex execution records no longer suppress unrelated denied or unmatched calls.
+- Claude partial/full snapshots with the same message ID no longer inflate the
+  final message length. Duplicate and blank config rule IDs are rejected.
+- `init --from` abstains on unsupported or conditional instructions, preserves
+  scoped parent text, skips fenced examples, and respects explicit word bounds.
 - Command checks ignore heredoc bodies fed to non-shell programs (for example
   `python - <<'PY'`). They matched analysis scripts that quoted a rule's pattern
   (see experiments/03).

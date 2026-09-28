@@ -21,3 +21,5 @@ jobs:
       - run: pytest -q
       - name: smoke-test the hero command
         run: keeptrue demo
+      - name: smoke-test the synthetic experiment pipeline (no model calls)
+        run: python examples/ablation/offline_demo.py --output "$RUNNER_TEMP/keeptrue-ablation-demo"

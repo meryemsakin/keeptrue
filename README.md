@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/pypi/pyversions/keeptrue.svg)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Your coding agent has a rules file. Is it actually following it?**
+**Measure your coding agent's instructions against recorded evidence and task outcomes.**
 
 You wrote an `AGENTS.md` (or `CLAUDE.md`, or a system prompt) telling your agent
 to run the tests, use `uv` not `pip`, keep summaries short, never touch
@@ -16,6 +16,17 @@ followed — or did some of them silently stop working?
 assistant response — and scores each check as a **pass rate across decidable
 runs**, with unknown evidence counted separately. Changes in these rates help
 identify what to inspect; they do not by themselves prove a model regression.
+
+Two workflows answer different questions:
+
+- **`scan` / `audit`**: what recorded actions match your checks, and where do
+  those checks disagree with reviewed evidence? Offline, no new model calls.
+- **`ablate` (experimental)**: how do externally verified task outcomes change
+  when one selected instruction block is removed? Freeze a task pack, run bounded
+  paired experiments, and export local HTML/JSON reports. This does not identify
+  instructions that are safe to delete. See the [experiment guide](docs/instruction-experiments.md)
+  and its free synthetic pipeline demo. [Validation status](docs/validation-status.md)
+  separates completed checks from the evidence still needed before release.
 
 **First real-session pilot:** reviewing one development session uncovered two
 false passes in keeptrue itself: rejected commands were counted as executed,
@@ -73,8 +84,9 @@ followed, here, now, after this upgrade."**
 ## How it works
 
 1. **Rules → checks.** Review and translate supported rules into deterministic
-   checks in `keeptrue.yaml`. `init --from` proposes keyword-based mappings;
-   it does not understand arbitrary negation or conditional scope:
+   checks in `keeptrue.yaml`. `init --from` proposes mappings only for a small
+   set of unconditional templates; unsupported negation, conditions and vague
+   limits remain unscored for manual review:
 
    | Rule | Check |
    |---|---|
@@ -169,9 +181,10 @@ partial reviews stay marked incomplete. See the [reference-audit guide](docs/ref
 ## What this is *not*
 
 - **Not a model leaderboard.** It scores *your* rules on *your* tasks.
-- **Not proof a rule "works."** It measures adherence, not whether following the
-  rule improved the outcome. (The cost table is there so you can see when a rule
-  costs tokens without moving success.)
+- **Adherence is not instruction usefulness.** `scan` measures recorded signals.
+  The experimental `ablate` workflow measures external task outcomes under
+  explicitly varied instructions; its exploratory differences do not prove
+  equivalence or that a rule is safe to delete.
 - **Not magic.** The checks are regexes and counts. That's the point: they're
   cheap, honest, and reproducible. Garbage rules in, garbage scores out.
 - **Not an execution or billing oracle.** A successful shell tool result does
@@ -179,6 +192,8 @@ partial reviews stay marked incomplete. See the [reference-audit guide](docs/ref
   committed tree. Usage is counted once per message (Claude Code) or response
   (Codex) and excludes cached input; Codex output includes reasoning tokens.
   Session duration includes idle gaps.
+  Missing usage or duration is `n/a`, with measured-run counts. Per-success costs
+  require usage for every run with a known task outcome.
 
 ## Roadmap
 
@@ -194,7 +209,12 @@ partial reviews stay marked incomplete. See the [reference-audit guide](docs/ref
 - [x] **Local reference audit** — freeze selected logs, record reference labels,
   and compare detections with an explicitly scoped real-session pilot.
 - [ ] Independent human review and a larger, prospectively selected sample.
-- [ ] `--ablation`: re-run with each rule removed to see which lines change behavior.
+- [x] Experimental `ablate plan/run/report`: frozen instruction units and task
+  acceptance, fresh source snapshots, bounded Codex execution, paired differences
+  and offline reports. Offline pipeline validation is implemented; prospective
+  real-task validation remains open.
+- [ ] Independently reviewed instruction experiment and successful use by
+  developers outside this project. No safe-deletion or savings claims yet.
 - [ ] Optional LLM judge for natural-language rules.
 - [ ] GitHub Action: comment the karne on PRs that touch `AGENTS.md`.
 

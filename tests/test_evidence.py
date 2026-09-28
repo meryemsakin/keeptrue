@@ -20,20 +20,36 @@ def test_unconfirmed_matching_tool_abstains(result):
 
 
 def test_nonzero_exit_is_execution_evidence():
-    t = Trajectory("t", "m", steps=[Step(command="pytest", result="error", exit_code=1)])
+    t = Trajectory(
+        "t", "m", steps=[Step(command="pytest", result="error", exit_code=1)]
+    )
     assert run_check(Check("required_command", {"pattern": "pytest"}), t).passed is True
 
 
 def test_unconfirmed_edit_not_reported_as_completed_change():
-    t = Trajectory("t", "m", steps=[Step(tool="edit", path="migrations/001.py",
-                                         diff="+print('x')", result="error")])
-    assert run_check(Check("forbidden_path", {"pattern": "migrations/"}), t).passed is None
+    t = Trajectory(
+        "t",
+        "m",
+        steps=[
+            Step(
+                tool="edit",
+                path="migrations/001.py",
+                diff="+print('x')",
+                result="error",
+            )
+        ],
+    )
+    assert (
+        run_check(Check("forbidden_path", {"pattern": "migrations/"}), t).passed is None
+    )
     assert run_check(Check("forbidden_in_diff", {"pattern": "print"}), t).passed is None
 
 
 def test_path_check_can_scope_edits_without_counting_reads():
     check = Check("forbidden_path", {"pattern": "migrations/", "tools": ["edit"]})
-    t = Trajectory("t", "m", steps=[Step(tool="read", path="migrations/001.py", result="ok")])
+    t = Trajectory(
+        "t", "m", steps=[Step(tool="read", path="migrations/001.py", result="ok")]
+    )
     assert run_check(check, t).passed is True
     t.steps.append(Step(tool="edit", path="migrations/001.py", result="ok"))
     assert run_check(check, t).passed is False
@@ -41,11 +57,14 @@ def test_path_check_can_scope_edits_without_counting_reads():
 
 def test_unknown_predictions_excluded_from_adherence_denominator():
     rule = Rule("r", "run pytest", Check("required_command", {"pattern": "pytest"}))
-    _, matrix = evaluate([rule], [
-        Trajectory("yes", "m", steps=[Step(command="pytest", result="ok")]),
-        Trajectory("no", "m", steps=[]),
-        Trajectory("maybe", "m", steps=[Step(command="pytest", result="unknown")]),
-    ])
+    _, matrix = evaluate(
+        [rule],
+        [
+            Trajectory("yes", "m", steps=[Step(command="pytest", result="ok")]),
+            Trajectory("no", "m", steps=[]),
+            Trajectory("maybe", "m", steps=[Step(command="pytest", result="unknown")]),
+        ],
+    )
     result = matrix["r"]["m"]
     assert (result.n, result.unknown, result.adherence) == (2, 1, 0.5)
 
@@ -64,9 +83,15 @@ def test_unknown_success_is_na_and_never_zero_in_report():
 
 
 def test_partial_success_labels_use_same_cohort_for_costs():
-    ts = [Trajectory("a", "m", success=True, usage=Usage(input_tokens=100)),
-          Trajectory("b", "m", success=False, usage=Usage(input_tokens=200)),
-          Trajectory("c", "m", usage=Usage(input_tokens=900))]
+    ts = [
+        Trajectory(
+            "a", "m", success=True, usage=Usage(input_tokens=100, output_tokens=0)
+        ),
+        Trajectory(
+            "b", "m", success=False, usage=Usage(input_tokens=200, output_tokens=0)
+        ),
+        Trajectory("c", "m", usage=Usage(input_tokens=900, output_tokens=0)),
+    ]
     row = cost_stats(ts, {"m": {"input": 1_000_000}})["m"]
     assert row["success_rate"] == 0.5
     assert row["success_known"] == 2
@@ -75,16 +100,61 @@ def test_partial_success_labels_use_same_cohort_for_costs():
 
 
 def test_known_zero_success_remains_infinity():
-    row = cost_stats([Trajectory("a", "m", success=False)])["m"]
+    row = cost_stats([Trajectory("a", "m", success=False, usage=Usage(0, 0))])["m"]
     assert row["success_rate"] == 0
     assert row["tokens_per_success"] == math.inf
 
 
+def test_missing_usage_is_not_zero_cost_and_partial_costs_do_not_hide_failed_run():
+    ts = [
+        Trajectory("pass", "m", success=True, usage=Usage(100, 20, 5)),
+        Trajectory("fail", "m", success=False),
+    ]
+    stats = cost_stats(ts, {"m": {"input": 1, "output": 1}})
+    row = stats["m"]
+    assert row["tokens_known"] == row["duration_known"] == 1
+    assert row["tokens_per_run"] == 120
+    assert math.isnan(row["tokens_per_success"]) and math.isnan(row["usd_per_success"])
+    out = StringIO()
+    render("", [], ["m"], {}, stats, console=Console(file=out, width=160))
+    assert "token usage known for 1/2" in out.getvalue()
+    assert "nan" not in out.getvalue()
+
+
+def test_missing_usage_round_trip_and_invalid_usage_rejected(tmp_path):
+    from dataclasses import asdict
+    import json
+    from keeptrue.loader import load_runs
+
+    path = tmp_path / "run.json"
+    path.write_text(json.dumps(asdict(Trajectory("t", "m"))))
+    loaded = load_runs(str(tmp_path))[0]
+    assert loaded.usage.input_tokens is None and loaded.usage.total_tokens is None
+    for usage in (
+        {"input_tokens": True},
+        {"output_tokens": -1},
+        {"duration_s": float("nan")},
+        [],
+    ):
+        path.write_text(json.dumps({"task_id": "t", "model": "m", "usage": usage}))
+        with pytest.raises(ValueError, match="usage"):
+            load_runs(str(tmp_path))
+
+
 def test_missing_final_message_abstains():
-    assert run_check(Check("max_final_length", {"limit": 80}), Trajectory("a", "m")).passed is None
+    assert (
+        run_check(Check("max_final_length", {"limit": 80}), Trajectory("a", "m")).passed
+        is None
+    )
 
 
-@pytest.mark.parametrize("check", [Check("typo"), Check("required_command", {"pattern": "["}),
-                                  Check("max_final_length", {"limit": "bad"})])
+@pytest.mark.parametrize(
+    "check",
+    [
+        Check("typo"),
+        Check("required_command", {"pattern": "["}),
+        Check("max_final_length", {"limit": "bad"}),
+    ],
+)
 def test_bad_check_is_not_scored_as_agent_violation(check):
     assert run_check(check, Trajectory("a", "m")).passed is None

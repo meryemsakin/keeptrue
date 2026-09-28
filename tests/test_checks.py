@@ -98,6 +98,20 @@ def test_heredoc_fed_to_a_shell_is_still_checked():
         assert run_check(PIP, traj(steps=[Step(command=script)])).passed is False
 
 
+def test_required_in_final_checks_the_closing_message():
+    status = Check("required_in_final", {"pattern": r"^[*_`\s]*STATUS: (done|blocked)[*_`\s]*\Z"})
+    assert run_check(status, traj(final_message="Added slugify.\n\n**STATUS: done**")).passed is True
+    out = run_check(status, traj(final_message="STATUS: done\nThen I also refactored it."))
+    assert out.passed is False and "no match" in out.evidence   # not the last line
+    assert run_check(status, traj(final_message="")).passed is None
+
+
+def test_forbidden_in_final_quotes_the_offending_line():
+    chk = Check("forbidden_in_final", {"pattern": r"(?i)\bas an ai\b"})
+    out = run_check(chk, traj(final_message="Done.\nAs an AI, I cannot verify this."))
+    assert out.passed is False and out.evidence == "final message matched: As an AI, I cannot verify this."
+
+
 def test_here_string_is_not_mistaken_for_a_heredoc():
     script = 'grep x <<< "EOF"\npip install y'
     assert run_check(PIP, traj(steps=[Step(command=script)])).passed is False

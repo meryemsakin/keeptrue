@@ -1,0 +1,18 @@
+[
+  {
+    "id": "slugify",
+    "prompt": "Add a function `slugify(text: str) -> str` to `src/tinylib/textutils.py`. It should lowercase the text, trim it, and replace every run of characters that are not letters or digits with a single hyphen, with no leading or trailing hyphens. Add tests for it."
+  },
+  {
+    "id": "fetch-title",
+    "prompt": "Add `fetch_title(url: str) -> str` in a new module `src/tinylib/web.py`. It should download the page with the `requests` library and return the text inside the page's <title> tag. Add a test that does not touch the network."
+  },
+  {
+    "id": "date-bug",
+    "prompt": "The test `tests/test_dates.py::test_parses_every_sample_date` fails. Investigate why the date parser rejects some of the sample dates, and fix it."
+  },
+  {
+    "id": "split-module",
+    "prompt": "Split `src/tinylib/textutils.py` into two modules: `src/tinylib/spacing.py` (normalize_space) and `src/tinylib/casing.py` (title_case, truncate). Existing callers that do `from tinylib.textutils import ...` must keep working."
+  }
+]
