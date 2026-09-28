@@ -22,9 +22,19 @@ def load_config(path: str) -> tuple[str, list[Rule], dict[str, Any]]:
     if not isinstance(entries, list):
         raise ValueError("rules must be a list")
     rules: list[Rule] = []
+    seen_ids: set[str] = set()
     for r in entries:
-        if not isinstance(r, dict) or not isinstance(r.get("id"), str) or not isinstance(r.get("text"), str):
+        if (
+            not isinstance(r, dict)
+            or not isinstance(r.get("id"), str)
+            or not isinstance(r.get("text"), str)
+        ):
             raise ValueError("each rule must have string id and text fields")
+        if not r["id"].strip():
+            raise ValueError("rule IDs must be nonempty")
+        if r["id"] in seen_ids:
+            raise ValueError(f"duplicate rule ID: {r['id']!r}")
+        seen_ids.add(r["id"])
         check = None
         c = r.get("check")
         if c is not None and not isinstance(c, dict):

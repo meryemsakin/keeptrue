@@ -57,8 +57,12 @@ def evaluate(
                     evidence.append(out.evidence)
             adherence = passed / n if n else math.nan
             matrix[rule.id][model] = RuleModelResult(
-                rule_id=rule.id, model=model, n=n, adherence=adherence,
-                evidence=evidence, unknown=unknown,
+                rule_id=rule.id,
+                model=model,
+                n=n,
+                adherence=adherence,
+                evidence=evidence,
+                unknown=unknown,
             )
 
     return models, matrix
@@ -75,16 +79,23 @@ def cost_stats(
         known = [t for t in ts if t.success is not None]
         successes = [t for t in known if t.success is True]
         n_succ = len(successes)
-        total_tokens = sum(t.usage.total_tokens for t in ts)
-        known_tokens = sum(t.usage.total_tokens for t in known)
+        measured = [t for t in ts if t.usage.total_tokens is not None]
+        measured_outcomes = [t for t in known if t.usage.total_tokens is not None]
+        total_tokens = sum(t.usage.total_tokens for t in measured)
+        complete_costs = len(measured_outcomes) == len(known)
+        known_tokens = sum(t.usage.total_tokens for t in measured_outcomes)
+        durations = [t.usage.duration_s for t in ts if t.usage.duration_s is not None]
         row: dict[str, float] = {
             "runs": float(len(ts)),
             "success_known": float(len(known)),
             "success_rate": (n_succ / len(known)) if known else math.nan,
-            "tokens_per_run": (total_tokens / len(ts)) if ts else math.nan,
+            "tokens_known": float(len(measured)),
+            "duration_known": float(len(durations)),
+            "tokens_per_run": (total_tokens / len(measured)) if measured else math.nan,
             "tokens_per_success": ((known_tokens / n_succ) if n_succ else math.inf)
-            if known else math.nan,
-            "avg_duration": mean([t.usage.duration_s for t in ts]) if ts else math.nan,
+            if known and complete_costs
+            else math.nan,
+            "avg_duration": mean(durations) if durations else math.nan,
         }
 
         price = prices.get(model)
@@ -92,16 +103,19 @@ def cost_stats(
             usd = sum(
                 t.usage.input_tokens / 1_000_000 * price.get("input", 0)
                 + t.usage.output_tokens / 1_000_000 * price.get("output", 0)
-                for t in ts
+                for t in measured
             )
-            row["usd_per_run"] = usd / len(ts) if ts else math.nan
+            row["usd_per_run"] = usd / len(measured) if measured else math.nan
             known_usd = sum(
                 t.usage.input_tokens / 1_000_000 * price.get("input", 0)
                 + t.usage.output_tokens / 1_000_000 * price.get("output", 0)
-                for t in known
+                for t in measured_outcomes
             )
-            row["usd_per_success"] = ((known_usd / n_succ) if n_succ else math.inf) \
-                if known else math.nan
+            row["usd_per_success"] = (
+                ((known_usd / n_succ) if n_succ else math.inf)
+                if known and complete_costs
+                else math.nan
+            )
 
         stats[model] = row
 

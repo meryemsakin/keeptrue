@@ -22,7 +22,7 @@ def read_events(path: str):
             yield event
 
 
-def duration(times: list[str]) -> float:
+def duration(times: list[str]) -> float | None:
     """Seconds between the earliest and latest parseable ISO timestamps."""
     parsed = []
     for t in times:
@@ -31,4 +31,16 @@ def duration(times: list[str]) -> float:
             parsed.append(dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc))
         except (ValueError, AttributeError):
             pass
-    return (max(parsed) - min(parsed)).total_seconds() if len(parsed) >= 2 else 0.0
+    return (max(parsed) - min(parsed)).total_seconds() if len(parsed) >= 2 else None
+
+
+def token_count(usage: dict, field: str) -> int | None:
+    value = usage.get(field)
+    return value if type(value) is int and value >= 0 else None
+
+
+def sum_tokens(records: list[dict], field: str) -> int | None:
+    values = [token_count(record, field) for record in records]
+    return (
+        sum(values) if values and all(value is not None for value in values) else None
+    )

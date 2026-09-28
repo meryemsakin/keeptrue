@@ -24,6 +24,7 @@ from pathlib import Path
 from ..models import Step, Trajectory, Usage
 from ._jsonl import duration as _duration
 from ._jsonl import read_events as _events
+from ._jsonl import sum_tokens, token_count
 
 
 def default_logs_dir(cwd: str | None = None) -> Path:
@@ -48,19 +49,40 @@ def _tool_to_steps(name: str, inp: dict) -> list[Step]:
     if name == "bash":
         return [Step(tool="bash", command=inp.get("command"))]
     if name == "write":
-        return [Step(tool="edit", path=inp.get("file_path"), diff=_added(inp.get("content", "")))]
+        return [
+            Step(
+                tool="edit",
+                path=inp.get("file_path"),
+                diff=_added(inp.get("content", "")),
+            )
+        ]
     if name == "edit":
-        return [Step(tool="edit", path=inp.get("file_path"),
-                     diff=_diff(inp.get("old_string", ""), inp.get("new_string", "")))]
+        return [
+            Step(
+                tool="edit",
+                path=inp.get("file_path"),
+                diff=_diff(inp.get("old_string", ""), inp.get("new_string", "")),
+            )
+        ]
     if name == "multiedit":
         out = []
         for e in inp.get("edits", []) or []:
-            out.append(Step(tool="edit", path=inp.get("file_path"),
-                            diff=_diff(e.get("old_string", ""), e.get("new_string", ""))))
+            out.append(
+                Step(
+                    tool="edit",
+                    path=inp.get("file_path"),
+                    diff=_diff(e.get("old_string", ""), e.get("new_string", "")),
+                )
+            )
         return out or [Step(tool="edit", path=inp.get("file_path"))]
     if name == "notebookedit":
-        return [Step(tool="edit", path=inp.get("notebook_path") or inp.get("file_path"),
-                     diff=_added(inp.get("new_source", "")))]
+        return [
+            Step(
+                tool="edit",
+                path=inp.get("notebook_path") or inp.get("file_path"),
+                diff=_added(inp.get("new_source", "")),
+            )
+        ]
     # read / grep / glob / task / webfetch / ...: keep a path if there is one
     path = inp.get("file_path") or inp.get("path") or inp.get("notebook_path")
     return [Step(tool=name or "tool", path=path)]
@@ -79,7 +101,9 @@ def _steps_from_content(content) -> list[Step]:
             converted = _tool_to_steps(name, inp)
             for step in converted:
                 step.tool_use_id = item.get("id")
-                if step.tool_use_id is not None and not isinstance(step.tool_use_id, str):
+                if step.tool_use_id is not None and not isinstance(
+                    step.tool_use_id, str
+                ):
                     raise ValueError("tool_use id must be a string")
                 step.result = "unknown"
             steps.extend(converted)
@@ -88,8 +112,11 @@ def _steps_from_content(content) -> list[Step]:
 
 def _final_text(content, current: str) -> str:
     if isinstance(content, list):
-        texts = [it.get("text", "") for it in content
-                 if isinstance(it, dict) and it.get("type") == "text"]
+        texts = [
+            it.get("text", "")
+            for it in content
+            if isinstance(it, dict) and it.get("type") == "text"
+        ]
         return "\n\n".join(texts) if texts else current
     if isinstance(content, str) and content.strip():
         return content
@@ -105,7 +132,7 @@ def load_session(path: str) -> Trajectory | None:
     seen_tools: set[str] = set()
     final_message = ""
     final_key = None
-    final_texts: list[str] = []
+    final_text = ""
     final_stop = None
     final_has_tools = False
     session_id: str | None = None
@@ -128,24 +155,30 @@ def load_session(path: str) -> Trajectory | None:
         if ev.get("type") != "assistant" or msg.get("model") == "<synthetic>":
             continue
         model = msg.get("model")
-        if model and model != "<synthetic>":  # Claude Code tags injected turns "<synthetic>"
+        if (
+            model and model != "<synthetic>"
+        ):  # Claude Code tags injected turns "<synthetic>"
             models[model] += 1
         # Streaming records repeat message-level usage. Count each message once,
         # retaining the greatest observed counter for partial usage snapshots.
         key = msg.get("id") or f"record-{index}"
         if key != final_key:
             final_key = key
-            final_texts = []
+            final_text = ""
             final_stop = None
             final_has_tools = False
         if msg.get("stop_reason"):
             final_stop = msg["stop_reason"]
-        text = _final_text(content, "")
-        if text and text not in final_texts:
-            final_texts.append(text)
+        # Repeated records for one message are snapshots, not additional
+        # messages. Replacing keeps a partial text plus its completed version
+        # from being counted twice; all text blocks in the snapshot are kept.
+        final_text = _final_text(content, final_text)
         usage = usage_by_message.setdefault(key, {})
         for field in ("input_tokens", "output_tokens"):
-            usage[field] = max(usage.get(field, 0), int((msg.get("usage") or {}).get(field, 0) or 0))
+            counts = msg.get("usage")
+            value = token_count(counts, field) if isinstance(counts, dict) else None
+            if value is not None:
+                usage[field] = max(usage.get(field, 0), value)
         if isinstance(content, list):
             fresh = []
             for item in content:
@@ -161,7 +194,7 @@ def load_session(path: str) -> Trajectory | None:
             steps.extend(_steps_from_content(fresh))
 
     if final_stop != "tool_use" and not final_has_tools:
-        final_message = "\n\n".join(final_texts)
+        final_message = final_text
 
     for step in steps:
         result = results.get(step.tool_use_id)
@@ -182,14 +215,19 @@ def load_session(path: str) -> Trajectory | None:
 
     return Trajectory(
         task_id=session_id or Path(path).stem,
-        model=(next(iter(models)) if len(models) == 1 else "mixed: " + ", ".join(sorted(models)))
-        if models else "unknown",
+        model=(
+            next(iter(models))
+            if len(models) == 1
+            else "mixed: " + ", ".join(sorted(models))
+        )
+        if models
+        else "unknown",
         run=0,
         steps=steps,
         final_message=final_message,
         usage=Usage(
-            input_tokens=sum(u.get("input_tokens", 0) for u in usage_by_message.values()),
-            output_tokens=sum(u.get("output_tokens", 0) for u in usage_by_message.values()),
+            input_tokens=sum_tokens(list(usage_by_message.values()), "input_tokens"),
+            output_tokens=sum_tokens(list(usage_by_message.values()), "output_tokens"),
             duration_s=_duration(times),
         ),
         success=None,  # a log can't tell us whether the task actually passed
@@ -229,13 +267,16 @@ def load_sessions(
     """
     if last is not None and last < 1:
         raise ValueError("--last must be a positive integer")
+
     def failed(path: str, exc: Exception) -> None:
         if strict:
             raise exc
         if on_error is not None:
             on_error(path, exc)
         else:
-            warnings.warn(f"skipping session {path}: {exc}", RuntimeWarning, stacklevel=3)
+            warnings.warn(
+                f"skipping session {path}: {exc}", RuntimeWarning, stacklevel=3
+            )
 
     candidates = []
     for path in _iter_files(spec):
@@ -243,7 +284,9 @@ def load_sessions(
             candidates.append((os.path.getmtime(path), path))
         except OSError as exc:
             failed(path, exc)
-    files = [path for _, path in sorted(candidates, key=lambda item: item[0], reverse=True)]
+    files = [
+        path for _, path in sorted(candidates, key=lambda item: item[0], reverse=True)
+    ]
     if last:
         files = files[:last]
     files.reverse()  # -> oldest first

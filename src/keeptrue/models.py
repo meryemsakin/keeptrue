@@ -17,24 +17,26 @@ class Step:
     """One thing the agent did. Fields are optional so different tools
     (a shell call, a file edit, a plain message) all fit the same shape."""
 
-    type: str = "tool_call"          # "tool_call" | "message"
-    tool: Optional[str] = None       # "bash", "edit", "read", ...
-    command: Optional[str] = None    # shell-ish command text, if any
-    path: Optional[str] = None       # file touched, if any
-    diff: Optional[str] = None       # unified-diff-ish text of the change
+    type: str = "tool_call"  # "tool_call" | "message"
+    tool: Optional[str] = None  # "bash", "edit", "read", ...
+    command: Optional[str] = None  # shell-ish command text, if any
+    path: Optional[str] = None  # file touched, if any
+    diff: Optional[str] = None  # unified-diff-ish text of the change
     exit_code: Optional[int] = None  # for commands that ran
-    result: str = "recorded"       # recorded | ok | error | unknown
+    result: str = "recorded"  # recorded | ok | error | unknown
     tool_use_id: Optional[str] = None  # correlate with the source transcript
 
 
 @dataclass
 class Usage:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    duration_s: float = 0.0
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    duration_s: Optional[float] = None
 
     @property
-    def total_tokens(self) -> int:
+    def total_tokens(self) -> Optional[int]:
+        if self.input_tokens is None or self.output_tokens is None:
+            return None
         return self.input_tokens + self.output_tokens
 
 
@@ -48,7 +50,7 @@ class Trajectory:
     steps: list[Step] = field(default_factory=list)
     final_message: str = ""
     usage: Usage = field(default_factory=Usage)
-    success: Optional[bool] = None   # did the task's own acceptance check pass?
+    success: Optional[bool] = None  # did the task's own acceptance check pass?
 
 
 @dataclass
@@ -61,13 +63,13 @@ class Check:
 class Rule:
     id: str
     text: str
-    check: Optional[Check] = None    # None => not machine-verifiable yet
+    check: Optional[Check] = None  # None => not machine-verifiable yet
 
 
 @dataclass
 class CheckOutcome:
-    passed: Optional[bool]          # None means the evidence is inconclusive
-    evidence: str = ""               # the offending (or confirming) detail
+    passed: Optional[bool]  # None means the evidence is inconclusive
+    evidence: str = ""  # the offending (or confirming) detail
 
     @property
     def verdict(self) -> str:
@@ -78,7 +80,7 @@ class CheckOutcome:
 class RuleModelResult:
     rule_id: str
     model: str
-    n: int                           # runs this rule was evaluated over
-    adherence: float                 # fraction of runs that passed (NaN if n==0)
+    n: int  # runs this rule was evaluated over
+    adherence: float  # fraction of runs that passed (NaN if n==0)
     evidence: list[str] = field(default_factory=list)
-    unknown: int = 0                 # excluded from the adherence denominator
+    unknown: int = 0  # excluded from the adherence denominator

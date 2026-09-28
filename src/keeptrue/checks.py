@@ -122,6 +122,25 @@ def check_max_final_length(check: Check, t: Trajectory) -> CheckOutcome:
     return CheckOutcome(False, f"{count} {unit} (limit {limit})")
 
 
+def _final_signal(check: Check, t: Trajectory, required: bool) -> CheckOutcome:
+    text = t.final_message or ""
+    if not text:
+        return CheckOutcome(None, "no final message was recorded")
+    match = re.compile(check.params["pattern"], re.MULTILINE).search(text)
+    if match is None:
+        return CheckOutcome(not required, f"final message has no match for /{check.params['pattern']}/")
+    start = text.rfind("\n", 0, match.start()) + 1
+    return CheckOutcome(required, f"final message matched: {text[start:].split(chr(10), 1)[0][:400]}")
+
+
+def check_required_in_final(check: Check, t: Trajectory) -> CheckOutcome:
+    return _final_signal(check, t, required=True)
+
+
+def check_forbidden_in_final(check: Check, t: Trajectory) -> CheckOutcome:
+    return _final_signal(check, t, required=False)
+
+
 def check_no_repeat_loops(check: Check, t: Trajectory) -> CheckOutcome:
     """Flag the agent getting stuck: the same command run k+ times."""
     k = int(check.params.get("threshold", 3))
@@ -145,6 +164,8 @@ REGISTRY = {
     "forbidden_in_diff": check_forbidden_in_diff,
     "required_in_diff": check_required_in_diff,
     "max_final_length": check_max_final_length,
+    "required_in_final": check_required_in_final,
+    "forbidden_in_final": check_forbidden_in_final,
     "no_repeat_loops": check_no_repeat_loops,
 }
 

@@ -16,31 +16,109 @@ def _c(kind: str, **params) -> dict:
     return {"kind": kind, **params}
 
 
-# (predicate over lowercased rule text) -> (check | None for length-special, id hint)
-_MATCHERS = [
-    (lambda t: "uv" in t and "pip" in t,
-     _c("forbidden_command", pattern=r"\bpip install\b"), "use-uv"),
-    (lambda t: re.search(r"\b(pytest|test suite|run the tests?|unit tests?)\b", t),
-     _c("required_command", pattern=r"\b(pytest|npm test|yarn test|go test|cargo test|make test)\b"),
-     "run-tests"),
-    (lambda t: "migration" in t,
-     _c("forbidden_path", pattern=r"(^|/)migrations?/"), "protect-migrations"),
-    (lambda t: re.search(r"\b(print|console\.log|debug (statement|log|print))", t),
-     _c("forbidden_in_diff", pattern=r"^\+.*(?<![.\w])(print|console\.log)\("), "no-debug-prints"),
-    (lambda t: "force" in t and "push" in t,
-     _c("forbidden_command", pattern=r"git push\b.*(--force|-f\b)"), "no-force-push"),
-    (lambda t: re.search(r"\b(ruff|black|prettier|eslint|gofmt|formatt?er?|linter?)\b", t),
-     _c("required_command", pattern=r"\b(ruff|black|prettier|eslint|gofmt)\b"), "format"),
-    (lambda t: re.search(r"(\.env\b|secret|credential|\bapi key\b|password)", t),
-     _c("forbidden_path", pattern=r"(^|/)\.env"), "no-secrets"),
-    (lambda t: re.search(r"\b(concise|brief|short|word limit|under \d+ words|summary)\b", t),
-     None, "concise-summary"),  # None => length check, resolved below
-]
+# Deliberately small templates, not keyword-based intent inference. A clause
+# with conditions, exceptions or an unsupported action stays an unscored rule.
+_NEGATIVE = r"(?:never|do not|don't)"
+_FINISH = r"(?: before (?:finishing|you finish))?"
+_CONDITIONAL = re.compile(
+    r"\b(?:if|when|whenever|unless|until|except|only|otherwise|provided)\b"
+)
+_TESTS = r"\b(pytest|npm test|yarn test|go test|cargo test|make test)\b"
 
 
-def _length_check(text: str) -> dict:
-    m = re.search(r"(\d+)\s*words?", text.lower())
-    return _c("max_final_length", unit="words", limit=int(m.group(1)) if m else 100)
+def _simple_check(t: str):
+    if _CONDITIONAL.search(t):
+        return None, None
+
+    no_pip = rf"{_NEGATIVE} (?:run |use )?pip3? install(?: packages)?"
+    use_uv = (
+        rf"(?:always )?use uv (?:instead of pip|rather than pip|"
+        rf"for (?:packages|package management)[,;] {_NEGATIVE} (?:use )?pip(?: install)?)"
+    )
+    if re.fullmatch(no_pip, t) or re.fullmatch(use_uv, t):
+        return _c("forbidden_command", pattern=r"\bpip3? install\b"), "use-uv"
+
+    run = re.fullmatch(
+        rf"(?:always )?run (?:the )?(pytest|(?:python(?:3)? -m )pytest|npm test|yarn test|"
+        rf"go test|cargo test|make test|test suite|tests|unit tests)(?: \(pytest\))?{_FINISH}",
+        t,
+    )
+    if run:
+        name = run.group(1)
+        # A named test runner must not be satisfied by a different one.
+        pattern = (
+            _TESTS
+            if name in ("test suite", "tests", "unit tests")
+            else (
+                r"\bpytest\b" if "pytest" in name else r"\b" + re.escape(name) + r"\b"
+            )
+        )
+        if "(pytest)" in t:
+            pattern = r"\bpytest\b"
+        return _c("required_command", pattern=pattern), "run-tests"
+
+    if re.fullmatch(
+        rf"{_NEGATIVE} (?:edit|modify|change) (?:any )?(?:files (?:under|in) |anything (?:under|in) |the )?"
+        r"migrations?/?",
+        t,
+    ):
+        return _c(
+            "forbidden_path", pattern=r"(^|/)migrations?/", tools=["edit"]
+        ), "protect-migrations"
+
+    debug = re.fullmatch(
+        rf"(?:no|{_NEGATIVE} (?:add|use)) (?:any )?(print\(\)|console\.log\(\)|debug prints)"
+        r"(?: calls| statements| debug statements)?",
+        t,
+    )
+    if debug:
+        signal = debug.group(1)
+        name = (
+            "(print|console\\.log)"
+            if signal == "debug prints"
+            else re.escape(signal[:-2])
+        )
+        return _c(
+            "forbidden_in_diff", pattern=r"^\+.*(?<![.\w])" + name + r"\("
+        ), "no-debug-prints"
+
+    if re.fullmatch(
+        rf"{_NEGATIVE} (?:run )?git push (?:--force|-f)", t
+    ) or re.fullmatch(rf"{_NEGATIVE} force[- ]push(?: with git)?", t):
+        return _c(
+            "forbidden_command", pattern=r"git push\b.*(--force|-f\b)"
+        ), "no-force-push"
+
+    formatting = re.fullmatch(
+        rf"(?:always )?run (?:the )?(ruff|black|prettier|eslint|gofmt|formatter|linter){_FINISH}",
+        t,
+    )
+    if formatting:
+        name = formatting.group(1)
+        pattern = (
+            r"\b(ruff|black|prettier|eslint|gofmt)\b"
+            if name in ("formatter", "linter")
+            else (r"\b" + name + r"\b")
+        )
+        return _c("required_command", pattern=pattern), "format"
+
+    if re.fullmatch(rf"{_NEGATIVE} (?:edit|modify|change) (?:the )?\.env(?: file)?", t):
+        return _c(
+            "forbidden_path", pattern=r"(^|/)\.env$", tools=["edit"]
+        ), "no-secrets"
+
+    length = re.fullmatch(
+        r"(?:keep|write|make) (?:(?:the|your) )?(?:final (?:message|summary|response|answer)|summary) "
+        r"(under|below|less than|at most|no more than) (\d+) words",
+        t,
+    )
+    if length:
+        limit = int(length.group(2))
+        if length.group(1) in ("under", "below", "less than"):
+            limit -= 1  # max_final_length is inclusive
+        if limit >= 0:
+            return _c("max_final_length", unit="words", limit=limit), "concise-summary"
+    return None, None
 
 
 def _slug(text: str, hint: str | None) -> str:
@@ -53,8 +131,25 @@ def _slug(text: str, hint: str | None) -> str:
 def extract_rules(text: str) -> list[str]:
     """Pull rule-like lines: bullet items and short non-bullet imperatives."""
     rules: list[str] = []
+    context = ""
+    fence = None
     for raw in text.splitlines():
         s = raw.strip()
+        if s.startswith(("```", "~~~")):
+            marker = s[:3]
+            fence = None if fence == marker else marker if fence is None else fence
+            continue
+        if fence:
+            continue
+        if not s:
+            continue
+        if s.endswith(":") or s.startswith("#"):
+            # Keep a scoped heading with its children; dropping the parent
+            # would turn a conditional instruction into an unconditional one.
+            context = (
+                s.lstrip("# ").rstrip(":") if _CONDITIONAL.search(s.lower()) else ""
+            )
+            continue
         bullet = re.match(r"^([-*+]|\d+[.)])\s+(.*)$", s)
         if bullet:
             s = bullet.group(2).strip()
@@ -64,17 +159,22 @@ def extract_rules(text: str) -> list[str]:
             continue
         s = re.sub(r"\s+", " ", s).strip(" .")
         s = re.sub(r"\*\*|`", "", s)  # drop markdown emphasis/code ticks
+        if context:
+            s = context + ": " + s
         if 3 <= len(s) <= 200 and s not in rules:
             rules.append(s)
     return rules
 
 
 def propose_check(text: str):
-    t = text.lower()
-    for pred, check, hint in _MATCHERS:
-        if pred(t):
-            return (_length_check(text) if check is None else dict(check)), hint
-    return None, None
+    """Suggest a check only for a recognized unconditional rule template.
+
+    This intentionally abstains on unsupported phrasing rather than inferring
+    meaning from words such as ``pytest``, ``migration`` or ``secret`` alone.
+    All proposals still require review; command/diff regexes are heuristics.
+    """
+    t = re.sub(r"\s+", " ", text.lower().replace("’", "'")).strip(" .")
+    return _simple_check(t)
 
 
 def propose_config(text: str, source: str = "your rules file") -> tuple[dict, int, int]:

@@ -86,10 +86,12 @@ def render(
         grid.add_row(*row)
 
     console.print(grid)
-    console.print(Text(
-        "n = decidable runs; ? = unknown evidence (excluded from the pass-rate denominator).",
-        style="dim",
-    ))
+    console.print(
+        Text(
+            "n = decidable runs; ? = unknown evidence (excluded from the pass-rate denominator).",
+            style="dim",
+        )
+    )
 
     # ---- regressions callout -------------------------------------------
     regressions = _collect_regressions(rules, models, matrix, baseline)
@@ -117,7 +119,10 @@ def render(
     elif baseline and len(models) > 1:
         console.print(
             Panel(
-                Text("No observed drop over 15 points among decidable scores.", style="green"),
+                Text(
+                    "No observed drop over 15 points among decidable scores.",
+                    style="green",
+                ),
                 border_style="green",
                 expand=False,
             )
@@ -138,30 +143,52 @@ def render(
         s = stats.get(m, {})
         row = [
             _short(m),
-            Text(_pct(s.get("success_rate", math.nan)),
-                 style=_adherence_style(s.get("success_rate", math.nan))),
-            f"{s.get('tokens_per_run', float('nan')):,.0f}",
+            Text(
+                _pct(s.get("success_rate", math.nan)),
+                style=_adherence_style(s.get("success_rate", math.nan)),
+            ),
+            _fmt_per_success(s.get("tokens_per_run", math.nan)),
             _fmt_per_success(s.get("tokens_per_success", math.inf)),
         ]
         if has_usd:
             row.append(_fmt_usd(s.get("usd_per_success")))
-        row.append(f"{s.get('avg_duration', float('nan')):.0f}s")
+        duration = s.get("avg_duration", math.nan)
+        row.append("n/a" if math.isnan(duration) else f"{duration:.0f}s")
         cost.add_row(*row)
 
     console.print(cost)
     for m in models:
         s = stats.get(m, {})
+        if s.get("tokens_known", s.get("runs")) != s.get("runs"):
+            console.print(
+                Text(
+                    f"{m}: complete token usage known for {int(s['tokens_known'])}/{int(s['runs'])} runs. "
+                    "Tokens/run uses measured runs; per-success costs require usage for every known-outcome run.",
+                    style="dim",
+                )
+            )
+        if s.get("duration_known", s.get("runs")) != s.get("runs"):
+            console.print(
+                Text(
+                    f"{m}: duration known for {int(s['duration_known'])}/{int(s['runs'])} runs.",
+                    style="dim",
+                )
+            )
         if s.get("success_known", s.get("runs")) != s.get("runs"):
-            console.print(Text(
-                f"{m}: task outcome known for {int(s['success_known'])}/{int(s['runs'])} runs. "
-                "Success and per-success costs use only those runs; unknown is not failure.",
-                style="dim",
-            ))
+            console.print(
+                Text(
+                    f"{m}: task outcome known for {int(s['success_known'])}/{int(s['runs'])} runs. "
+                    "Success and per-success costs use only those runs; unknown is not failure.",
+                    style="dim",
+                )
+            )
     if len(models) > 1:
-        console.print(Text(
-            "Descriptive comparison only: task mix and rule applicability are not controlled.",
-            style="dim",
-        ))
+        console.print(
+            Text(
+                "Descriptive comparison only: task mix and rule applicability are not controlled.",
+                style="dim",
+            )
+        )
 
     footer = note or (
         "Scores are computed deterministically from each run's tool calls and "
@@ -187,7 +214,9 @@ def _collect_regressions(rules, models, matrix, baseline) -> list[dict[str, Any]
             if not res or math.isnan(res.adherence):
                 continue
             delta = base_res.adherence - res.adherence
-            if delta > REGRESSION_THRESHOLD and (worst is None or delta > worst["delta"]):
+            if delta > REGRESSION_THRESHOLD and (
+                worst is None or delta > worst["delta"]
+            ):
                 worst = {
                     "text": rule.text,
                     "model": m,

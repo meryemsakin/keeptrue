@@ -1,8 +1,8 @@
 # Contributing
 
 Thanks for looking! keeptrue is small on purpose. The best contributions right
-now are **new check kinds** and **run adapters** (capturing runs from Claude
-Code, Codex, or your own agent loop).
+now are reviewed task acceptance checks, evidence-parser regression cases and
+small reproducible experiments. See [instruction experiments](docs/instruction-experiments.md).
 
 ## Dev setup
 

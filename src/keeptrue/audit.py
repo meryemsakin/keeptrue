@@ -46,7 +46,7 @@ def _validate_rules(rules) -> None:
             continue
         if c.kind not in REGISTRY:
             raise ValueError(f"{rule.id}: unknown check kind {c.kind!r}")
-        if c.kind.endswith(("command", "path", "diff")):
+        if c.kind.endswith(("command", "path", "diff", "final")):
             try:
                 re.compile(c.params["pattern"])
             except (KeyError, TypeError, re.error) as exc:
