@@ -25,13 +25,15 @@ pipx run --spec git+https://github.com/meryemsakin/keeptrue keeptrue demo
 # once on PyPI:  pipx install keeptrue && keeptrue demo
 ```
 
-The same agent, upgraded, silently stopped following its `pip`→`uv` and
-`pytest` rules — 0% adherence on both — while your tests still pass and the cost
-dashboard only shows it got *cheaper per token*. That gap is the whole point.
+In this **bundled example**, an agent — after a model upgrade — stops following
+its `pip`→`uv` and `pytest` rules (100% → 0% on both) even though the tests
+still pass and the cost dashboard only shows it got *cheaper per token*. That
+gap is the whole point.
 
-
-> The `demo` uses recorded, illustrative runs bundled with the tool, so it works
-> offline and for free. Point `keeptrue check` at your own runs to score them.
+> ⚠️ The demo runs are **illustrative** — hand-authored to show the failure
+> mode, not captured from a real model. The numbers that matter are the ones
+> `keeptrue check` produces on **your** runs. This README will lead with a real
+> result as soon as there is one.
 
 ## Why this exists
 
@@ -39,13 +41,18 @@ Recent studies keep finding the same thing: agents *say* they follow
 instructions far more often than they *do*, and it gets worse as the model
 changes or the conversation grows.
 
-- Under strict grading, the strongest model in the **HANDBOOK.md** benchmark
-  passes only ~36% of trials; most frontier models are below 25%. Failure modes
-  include *doing a required check then acting against the result* and *reporting
-  compliance they never achieved*.
-- **Harness-IF** shows compliance has to hold across many "instruction
-  surfaces" (system prompt, tool descriptions, `CLAUDE.md`, user turn) and
-  often doesn't.
+- Under strict grading, the strongest model in the
+  **[HANDBOOK.md](https://arxiv.org/abs/2607.25398)** benchmark passes only ~36%
+  of trials; most frontier models are below 25%. Failure modes include *doing a
+  required check then acting against the result* and *reporting compliance they
+  never achieved*.
+- **[Harness-IF](https://arxiv.org/abs/2608.11727)** shows compliance has to
+  hold across many "instruction surfaces" (system prompt, tool descriptions,
+  `CLAUDE.md`, user turn) — and that a rule only really *matters* when it cuts
+  against the model's default: models do 3.6–7.4 points worse on rules that
+  conflict with what they'd have done anyway. So "pytest: 100%" on its own can
+  be meaningless; the signal is in the against-the-grain rules. (Tagging rules
+  as default-conflicting is on the roadmap — see below.)
 - Following an `AGENTS.md` instruction **does not** reliably translate into
   task success.
 
@@ -70,7 +77,7 @@ followed, here, now, after this upgrade."**
 2. **Runs → evidence.** You record what the agent did as small JSON files (one
    per model/version). keeptrue replays them through the checks.
 
-3. **Karne.** For every rule it reports the **share of runs that obeyed it**,
+3. **Karne** (Turkish for *report card*). For every rule it reports the **share of runs that obeyed it**,
    flags anything that regressed vs. the baseline model, and shows
    **tokens-per-success** (because "90% at half the price vs. 95% at triple" is
    the comparison you actually care about).
@@ -123,10 +130,17 @@ on the roadmap; today you produce them from your own harness.
 
 ## Roadmap
 
-- [ ] Claude Code / Codex session adapters (auto-capture runs)
-- [ ] `--ablation`: re-run with each rule removed to see which lines change behavior
-- [ ] Optional LLM judge for natural-language rules
-- [ ] GitHub Action: comment the karne on PRs that touch `AGENTS.md`
+- [ ] **Claude Code / Codex session adapters** — score your *existing* local
+  session logs, so you don't have to produce JSON by hand. (Next up: "score your
+  last 50 Claude Code sessions against your `CLAUDE.md`" at zero new API cost.)
+- [ ] **Tag rules as default-conflicting** — surface adherence for the rules
+  that cut against the model's defaults, since those are the ones that carry
+  signal ([Harness-IF](https://arxiv.org/abs/2608.11727)).
+- [ ] **`keeptrue init --from AGENTS.md`** — read your rules file and *propose*
+  the checks (an LLM helps once, at setup; scoring stays deterministic).
+- [ ] `--ablation`: re-run with each rule removed to see which lines change behavior.
+- [ ] Optional LLM judge for natural-language rules.
+- [ ] GitHub Action: comment the karne on PRs that touch `AGENTS.md`.
 
 ## License
 
