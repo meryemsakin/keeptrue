@@ -63,7 +63,8 @@ CONFIG = {
         {"id": "concise-summary", "text": "Keep the final summary under 80 words",
          "check": {"kind": "max_final_length", "unit": "words", "limit": 80}},
         {"id": "no-debug-prints", "text": "No print() debug statements in the diff",
-         "check": {"kind": "forbidden_in_diff", "pattern": r"^\+.*\bprint\("}},
+         # bare print( only — not console.print(, self.print(, logger.print(
+         "check": {"kind": "forbidden_in_diff", "pattern": r"^\+.*(?<![.\w])print\("}},
         {"id": "no-stuck-loops", "text": "Don't retry the same failing command",
          "check": {"kind": "no_repeat_loops", "threshold": 3}},
         {"id": "format-with-ruff", "text": "Format touched files with ruff",

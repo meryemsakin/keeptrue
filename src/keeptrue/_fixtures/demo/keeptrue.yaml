@@ -32,7 +32,7 @@ rules:
   text: No print() debug statements in the diff
   check:
     kind: forbidden_in_diff
-    pattern: ^\+.*\bprint\(
+    pattern: ^\+.*(?<![.\w])print\(
 - id: no-stuck-loops
   text: Don't retry the same failing command
   check:

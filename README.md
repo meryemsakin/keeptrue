@@ -94,13 +94,19 @@ callout, and the cost/reliability table:
 
 ## Score your own agent
 
+**Fastest path — score your real Claude Code sessions.** No new API calls: it
+reads the JSONL logs Claude Code already wrote to `~/.claude/projects/…`.
+
 ```bash
-keeptrue init                       # writes a starter keeptrue.yaml
-# record runs as JSON (see docs/trajectory-format.md)
-keeptrue check --runs ./runs        # --config defaults to ./keeptrue.yaml
+keeptrue init            # writes a starter keeptrue.yaml — edit the rules to yours
+keeptrue scan            # scores your recent Claude Code sessions in this repo
+keeptrue scan --last 50  # ...or your last 50 (point elsewhere with --logs DIR)
 ```
 
-A run is just:
+(One honest caveat: a rule that didn't apply to a session still counts as a miss
+here, so read the *against-the-grain* rules first — see the roadmap.)
+
+**Or bring runs from any harness.** A run is just JSON:
 
 ```json
 {
@@ -116,8 +122,8 @@ A run is just:
 }
 ```
 
-Adapters that capture these automatically from Claude Code / Codex sessions are
-on the roadmap; today you produce them from your own harness.
+…then `keeptrue check --runs ./runs`. (A Codex adapter is on the roadmap; the
+Claude Code one ships today via `keeptrue scan`.)
 
 ## What this is *not*
 
@@ -130,9 +136,9 @@ on the roadmap; today you produce them from your own harness.
 
 ## Roadmap
 
-- [ ] **Claude Code / Codex session adapters** — score your *existing* local
-  session logs, so you don't have to produce JSON by hand. (Next up: "score your
-  last 50 Claude Code sessions against your `CLAUDE.md`" at zero new API cost.)
+- [x] **Claude Code session adapter** (`keeptrue scan`) — score your existing
+  local session logs, no JSON by hand, zero new API cost.
+- [ ] **Codex session adapter** — same, for Codex logs.
 - [ ] **Tag rules as default-conflicting** — surface adherence for the rules
   that cut against the model's defaults, since those are the ones that carry
   signal ([Harness-IF](https://arxiv.org/abs/2608.11727)).
