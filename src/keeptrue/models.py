@@ -23,6 +23,8 @@ class Step:
     path: Optional[str] = None       # file touched, if any
     diff: Optional[str] = None       # unified-diff-ish text of the change
     exit_code: Optional[int] = None  # for commands that ran
+    result: str = "recorded"       # recorded | ok | error | unknown
+    tool_use_id: Optional[str] = None  # correlate with the source transcript
 
 
 @dataclass
@@ -64,8 +66,12 @@ class Rule:
 
 @dataclass
 class CheckOutcome:
-    passed: bool
+    passed: Optional[bool]          # None means the evidence is inconclusive
     evidence: str = ""               # the offending (or confirming) detail
+
+    @property
+    def verdict(self) -> str:
+        return "unknown" if self.passed is None else ("pass" if self.passed else "fail")
 
 
 @dataclass
@@ -75,3 +81,4 @@ class RuleModelResult:
     n: int                           # runs this rule was evaluated over
     adherence: float                 # fraction of runs that passed (NaN if n==0)
     evidence: list[str] = field(default_factory=list)
+    unknown: int = 0                 # excluded from the adherence denominator

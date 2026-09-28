@@ -12,12 +12,23 @@ to run the tests, use `uv` not `pip`, keep summaries short, never touch
 `migrations/`. Then you upgraded the model. Are those rules still being
 followed — or did some of them silently stop working?
 
-`keeptrue` reads what an agent *actually did* on a set of tasks — the commands
-it ran, the files it touched, the message it ended with — and scores each rule
-as a **pass rate across runs**. No vibes, no eyeballing one transcript. It's
-the diff you can't see today: *which of my instructions regressed.*
+`keeptrue` reads recorded tool evidence — commands, file edits, and the last
+assistant response — and scores each check as a **pass rate across decidable
+runs**, with unknown evidence counted separately. Changes in these rates help
+identify what to inspect; they do not by themselves prove a model regression.
 
-![keeptrue — you upgraded your coding agent; which rules did it silently stop following?](docs/demo-animated.svg)
+**First real-session pilot:** reviewing one development session uncovered two
+false passes in keeptrue itself: rejected commands were counted as executed,
+and a synthetic session-limit notice replaced the real final response. Both
+are addressed in this revision. The [case study](experiments/02-real-session-audit/)
+includes before/after results, the remaining applicability false alarm, and
+reproduction instructions. It is a retrospective, agent-reviewed pilot on one
+private session, not independent validation or a model benchmark. A first
+[Codex vs Claude Code scan](experiments/03-cross-agent-heredoc/) of the same repo
+then got three Codex cells wrong, because analysis scripts quoted the rule
+patterns inside heredocs; command checks now ignore that data.
+
+![keeptrue demo — observed adherence drops, with decidable-run and unknown counts](docs/demo-animated.svg)
 
 ```bash
 # no API key, no cost — scores bundled illustrative runs:
@@ -25,15 +36,14 @@ pipx run --spec git+https://github.com/meryemsakin/keeptrue keeptrue demo
 # once on PyPI:  pipx install keeptrue && keeptrue demo
 ```
 
-In this **bundled example**, an agent — after a model upgrade — stops following
-its `pip`→`uv` and `pytest` rules (100% → 0% on both) even though the tests
-still pass and the cost dashboard only shows it got *cheaper per token*. That
-gap is the whole point.
+In this **bundled example**, the `pip`→`uv` and `pytest` checks drop from 100% to
+0% across two illustrative groups, each with nine decidable runs and zero
+unknowns. The animation shows selected rows; the full terminal report is below.
 
 > ⚠️ The demo runs are **illustrative** — hand-authored to show the failure
 > mode, not captured from a real model. The numbers that matter are the ones
-> `keeptrue check` produces on **your** runs. This README will lead with a real
-> result as soon as there is one.
+> `keeptrue check` produces on **your** runs, checked against reference labels
+> using [`keeptrue audit`](docs/reference-audit.md).
 
 ## Why this exists
 
@@ -62,45 +72,83 @@ followed, here, now, after this upgrade."**
 
 ## How it works
 
-1. **Rules → checks.** Each line of your rules file maps to a deterministic
-   check in `keeptrue.yaml`:
+1. **Rules → checks.** Review and translate supported rules into deterministic
+   checks in `keeptrue.yaml`. `init --from` proposes keyword-based mappings;
+   it does not understand arbitrary negation or conditional scope:
 
    | Rule | Check |
    |---|---|
    | "use `uv`, never `pip install`" | `forbidden_command: \bpip install\b` |
    | "always run pytest" | `required_command: \bpytest\b` |
-   | "never edit migrations/" | `forbidden_path: (^\|/)migrations/` |
+   | "never edit migrations/" | `forbidden_path: (^\|/)migrations/`, with `tools: [edit]` |
    | "summary under 80 words" | `max_final_length: 80 words` |
-   | "no debug prints" | `forbidden_in_diff: ^\+.*\bprint\(` |
-   | "don't retry a failing command" | `no_repeat_loops: 3` |
+   | "no debug prints" | `forbidden_in_diff: ^\+.*(?<![.\w])print\(` (bare `print(`, not `console.print(`) |
+   | "don't repeat an identical command 3 times" | `no_repeat_loops: 3` |
 
 2. **Runs → evidence.** You record what the agent did as small JSON files (one
    per model/version). keeptrue replays them through the checks.
 
 3. **Karne** (Turkish for *report card*). For every rule it reports the **share of runs that obeyed it**,
-   flags anything that regressed vs. the baseline model, and shows
+   flags observed drops vs. the first model, and shows
    **tokens-per-success** (because "90% at half the price vs. 95% at triple" is
    the comparison you actually care about).
 
-The scoring is **fully deterministic** — it never calls a model, so a score is
-always reproducible and traceable to the exact command or line that broke the
-rule. (Fuzzy rules that can't be pinned to a signal are handled by an optional
-LLM judge, off by default.)
+The checks are **fully deterministic** and never call a model. Evidence explains
+which recorded signal matched a check. Reproducibility does not guarantee
+semantic correctness: heredoc bodies fed to non-shell programs (such as
+`python - <<'PY'`) are ignored, but `echo pytest` still matches a broad `pytest` regex.
+An optional LLM judge is planned and is not implemented.
 
-Here's the full report `keeptrue demo` prints — all eight rules, the regressions
+Here's the full report `keeptrue demo` prints — all eight rules, the observed-drops
 callout, and the cost/reliability table:
 
-![The full keeptrue report: per-rule adherence across two models, a silently-dropped-rules callout, and tokens-per-success](docs/demo.svg)
+![The full keeptrue report: per-rule adherence with n/? counts across two models, an observed-adherence-drops callout, and tokens-per-success](docs/demo.svg)
 
 ## Score your own agent
 
+**Fastest path — score your real Claude Code or Codex sessions.** No new API
+calls: it reads the JSONL logs the agents already wrote (`~/.claude/projects/…`,
+`~/.codex/sessions/…`).
+
 ```bash
-keeptrue init                       # writes a starter keeptrue.yaml
-# record runs as JSON (see docs/trajectory-format.md)
-keeptrue check --runs ./runs        # --config defaults to ./keeptrue.yaml
+keeptrue init --from CLAUDE.md  # turn your rules file into checks (deterministic, no model)
+keeptrue scan                   # your recent Claude Code sessions in this repo
+keeptrue scan --agent codex     # this repo's Codex sessions (matched by working directory)
+keeptrue scan --agent all       # both agents, side by side
+keeptrue scan --last 50         # ...or your last 50 (--all-projects for every repo)
+keeptrue scan --strict          # stop on the first unreadable or invalid log
 ```
 
-A run is just:
+The scan does not infer rule applicability. A required command can still cause
+an alert in a session where the rule did not apply. `audit` lets you measure
+these false alarms against explicit reference labels. Missing tool results are
+unknown; missing task outcomes are `n/a`, not 0% success. Sessions containing
+multiple models are labeled `mixed` rather than attributed to one model. For
+Codex, commands and file edits come from the rollout's execution records (exit
+codes and per-file diffs); code-mode JavaScript never counts as a confirmed
+command on its own.
+
+By default, `scan` warns on stderr for each unreadable or invalid file and scores
+the remaining sessions. The report includes the skipped-file count; it never
+scores just the valid prefix of a corrupted log. If nothing usable remains,
+the command fails. `--last N` selects the newest files before parsing, without
+backfilling skipped files. Use `--strict` to fail on any selected-file error.
+Curated `audit prepare` imports always remain strict.
+
+**Validate the checks on selected recordings:**
+
+```bash
+keeptrue audit prepare --config keeptrue.yaml --logs /path/to/session.jsonl
+# Read .keeptrue/audits/pilot/review.md and independently fill labels.json.
+keeptrue audit report
+```
+
+The local snapshot preserves raw source events and normalized runs. Labels
+start blank and distinguish pass, fail, not applicable and unknown. The report
+counts correct detections, false alerts, missed violations and abstentions;
+partial reviews stay marked incomplete. See the [reference-audit guide](docs/reference-audit.md).
+
+**Or bring runs from any harness.** A run is just JSON:
 
 ```json
 {
@@ -116,8 +164,7 @@ A run is just:
 }
 ```
 
-Adapters that capture these automatically from Claude Code / Codex sessions are
-on the roadmap; today you produce them from your own harness.
+…then `keeptrue check --runs ./runs`.
 
 ## What this is *not*
 
@@ -127,17 +174,26 @@ on the roadmap; today you produce them from your own harness.
   costs tokens without moving success.)
 - **Not magic.** The checks are regexes and counts. That's the point: they're
   cheap, honest, and reproducible. Garbage rules in, garbage scores out.
+- **Not an execution or billing oracle.** A successful shell tool result does
+  not prove every command in a pipeline ran. Edit payloads are not the final
+  committed tree. Usage is counted once per message (Claude Code) or response
+  (Codex) and excludes cached input; Codex output includes reasoning tokens.
+  Session duration includes idle gaps.
 
 ## Roadmap
 
-- [ ] **Claude Code / Codex session adapters** — score your *existing* local
-  session logs, so you don't have to produce JSON by hand. (Next up: "score your
-  last 50 Claude Code sessions against your `CLAUDE.md`" at zero new API cost.)
+- [x] **Claude Code session adapter** (`keeptrue scan`) — score your existing
+  local session logs, no JSON by hand, zero new API cost.
+- [x] **Codex session adapter** (`scan --agent codex|all`) — execution records,
+  exit codes and per-file diffs from Codex rollouts.
 - [ ] **Tag rules as default-conflicting** — surface adherence for the rules
   that cut against the model's defaults, since those are the ones that carry
   signal ([Harness-IF](https://arxiv.org/abs/2608.11727)).
-- [ ] **`keeptrue init --from AGENTS.md`** — read your rules file and *propose*
-  the checks (an LLM helps once, at setup; scoring stays deterministic).
+- [x] **`keeptrue init --from AGENTS.md`** — derive checks from your rules file
+  with a deterministic pattern library (no model).
+- [x] **Local reference audit** — freeze selected logs, record reference labels,
+  and compare detections with an explicitly scoped real-session pilot.
+- [ ] Independent human review and a larger, prospectively selected sample.
 - [ ] `--ablation`: re-run with each rule removed to see which lines change behavior.
 - [ ] Optional LLM judge for natural-language rules.
 - [ ] GitHub Action: comment the karne on PRs that touch `AGENTS.md`.
