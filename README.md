@@ -98,9 +98,9 @@ callout, and the cost/reliability table:
 reads the JSONL logs Claude Code already wrote to `~/.claude/projects/…`.
 
 ```bash
-keeptrue init            # writes a starter keeptrue.yaml — edit the rules to yours
-keeptrue scan            # scores your recent Claude Code sessions in this repo
-keeptrue scan --last 50  # ...or your last 50 (point elsewhere with --logs DIR)
+keeptrue init --from CLAUDE.md  # turn your rules file into checks (deterministic, no model)
+keeptrue scan                   # scores your recent Claude Code sessions in this repo
+keeptrue scan --last 50         # ...or your last 50 (--all-projects for every repo)
 ```
 
 (One honest caveat: a rule that didn't apply to a session still counts as a miss
@@ -142,8 +142,8 @@ Claude Code one ships today via `keeptrue scan`.)
 - [ ] **Tag rules as default-conflicting** — surface adherence for the rules
   that cut against the model's defaults, since those are the ones that carry
   signal ([Harness-IF](https://arxiv.org/abs/2608.11727)).
-- [ ] **`keeptrue init --from AGENTS.md`** — read your rules file and *propose*
-  the checks (an LLM helps once, at setup; scoring stays deterministic).
+- [x] **`keeptrue init --from AGENTS.md`** — derive checks from your rules file
+  with a deterministic pattern library (no model).
 - [ ] `--ablation`: re-run with each rule removed to see which lines change behavior.
 - [ ] Optional LLM judge for natural-language rules.
 - [ ] GitHub Action: comment the karne on PRs that touch `AGENTS.md`.

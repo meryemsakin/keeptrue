@@ -94,11 +94,30 @@ def _cmd_init(args: argparse.Namespace) -> int:
     if dest.exists() and not args.force:
         print(f"{dest} already exists (use --force to overwrite)", file=sys.stderr)
         return 1
+
+    if args.from_file:
+        src = Path(args.from_file)
+        if not src.exists():
+            print(f"rules file not found: {src}", file=sys.stderr)
+            return 1
+        import yaml
+
+        from .from_rules import propose_config
+        config, matched, total = propose_config(src.read_text(), source=src.name)
+        dest.write_text(yaml.safe_dump(config, sort_keys=False, allow_unicode=True, width=100))
+        print(f"wrote {dest}: proposed checks for {matched}/{total} rules from {src.name}.")
+        gaps = [r["id"] for r in config["rules"] if "check" not in r]
+        if gaps:
+            shown = ", ".join(gaps[:8]) + (" …" if len(gaps) > 8 else "")
+            print(f"{len(gaps)} rule(s) had no auto-match — add a check by hand: {shown}")
+        print("Review the checks, then run `keeptrue scan` (or `keeptrue check --runs ./runs`).")
+        return 0
+
     template = (_demo_dir() / "keeptrue.yaml").read_text()
     dest.write_text(template)
     print(f"wrote {dest}")
-    print("Next: record some agent runs as JSON, then `keeptrue check "
-          f"--config {dest} --runs ./runs`.")
+    print("Next: `keeptrue init --from CLAUDE.md` to derive rules, or record runs "
+          "as JSON and `keeptrue check --runs ./runs`.")
     return 0
 
 
@@ -130,6 +149,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     i = sub.add_parser("init", help="write a starter keeptrue.yaml")
     i.add_argument("--output", default="keeptrue.yaml")
+    i.add_argument("--from", dest="from_file", default=None, metavar="FILE",
+                   help="derive checks from an AGENTS.md/CLAUDE.md (deterministic, no model)")
     i.add_argument("--force", action="store_true")
     i.set_defaults(func=_cmd_init)
 
