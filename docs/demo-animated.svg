@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" width="900" height="600" font-family="ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">
+  <defs>
+    <clipPath id="clip1">
+      <rect x="176" y="62" width="0" height="26">
+        <animate attributeName="width" dur="11s" repeatCount="indefinite"
+                 values="0;0;220;220;0" keyTimes="0;0.03;0.11;0.92;1"/>
+      </rect>
+    </clipPath>
+    <clipPath id="clip2">
+      <rect x="176" y="197" width="0" height="26">
+        <animate attributeName="width" dur="11s" repeatCount="indefinite"
+                 values="0;0;308;308;0" keyTimes="0;0.20;0.30;0.92;1"/>
+      </rect>
+    </clipPath>
+    <style>
+      text { font-size: 19px; }
+      .title{ font-size: 13px; fill: #8a897c; }
+      .dim  { fill: #75715e; }
+      .white{ fill: #f8f8f2; }
+      .green{ fill: #a6e22e; }
+      .red  { fill: #f92672; }
+      .orng { fill: #fd971f; }
+      .cyan { fill: #66d9ef; }
+      .yel  { fill: #e6db74; }
+      .b    { font-weight: 700; }
+    </style>
+  </defs>
+
+  <!-- window chrome -->
+  <rect x="10" y="10" width="880" height="580" rx="12" fill="#1e1f1c" stroke="#33352e"/>
+  <rect x="10" y="10" width="880" height="36" rx="12" fill="#2a2c26"/>
+  <rect x="10" y="34" width="880" height="12" fill="#2a2c26"/>
+  <circle cx="34" cy="28" r="6" fill="#ff5f56"/>
+  <circle cx="54" cy="28" r="6" fill="#ffbd2e"/>
+  <circle cx="74" cy="28" r="6" fill="#27c93f"/>
+  <text class="title" x="450" y="32" text-anchor="middle">~/acme-api — you just upgraded your coding agent</text>
+
+  <!-- command 1: git log -->
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;1;1;0" keyTimes="0;0.02;0.92;1"/>
+    <text x="30" y="80"><tspan class="cyan">~/acme-api</tspan> <tspan class="green">$</tspan></text>
+    <text class="white" x="176" y="80" clip-path="url(#clip1)">git log --oneline -3</text>
+  </g>
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.03;0.035;0.12;1"/>
+    <rect x="176" y="63" width="10" height="21" fill="#f8f8f2">
+      <animate attributeName="x" dur="11s" repeatCount="indefinite"
+               values="176;176;396;396;176" keyTimes="0;0.03;0.11;0.92;1"/>
+      <animate attributeName="opacity" dur="0.8s" repeatCount="indefinite"
+               values="1;1;0;0" keyTimes="0;0.5;0.5;1"/>
+    </rect>
+  </g>
+
+  <!-- git output -->
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.12;0.14;0.92;1"/>
+    <text y="107"><tspan class="yel" x="30">a3f1c2</tspan><tspan class="white" x="120">chore: bump coding agent  </tspan><tspan class="red">v1 → v2</tspan></text>
+  </g>
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.135;0.155;0.92;1"/>
+    <text y="134"><tspan class="yel" x="30">9c4e1b</tspan><tspan class="dim" x="120">feat: add /orders endpoint</tspan></text>
+  </g>
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.15;0.17;0.92;1"/>
+    <text y="161"><tspan class="yel" x="30">f0a7d2</tspan><tspan class="dim" x="120">fix: retry on 5xx</tspan></text>
+  </g>
+
+  <!-- command 2: keeptrue check -->
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.17;0.19;0.92;1"/>
+    <text x="30" y="215"><tspan class="cyan">~/acme-api</tspan> <tspan class="green">$</tspan></text>
+    <text class="white" x="176" y="215" clip-path="url(#clip2)">keeptrue check --runs ./runs</text>
+  </g>
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.20;0.205;0.90;1"/>
+    <rect x="176" y="198" width="10" height="21" fill="#f8f8f2">
+      <animate attributeName="x" dur="11s" repeatCount="indefinite"
+               values="176;176;484;484;176" keyTimes="0;0.20;0.30;0.92;1"/>
+      <animate attributeName="opacity" dur="0.8s" repeatCount="indefinite"
+               values="1;1;0;0" keyTimes="0;0.5;0.5;1"/>
+    </rect>
+  </g>
+
+  <!-- scenario subtitle -->
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.32;0.35;0.92;1"/>
+    <text class="dim" x="30" y="242">8 rules · agent-v1-old (baseline) → agent-v2-new · 3 tasks × 3 runs</text>
+  </g>
+
+  <!-- table header -->
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.35;0.38;0.92;1"/>
+    <text y="282">
+      <tspan class="dim" x="30">rule</tspan>
+      <tspan class="dim" x="650" text-anchor="end">agent-v1-old ·baseline</tspan>
+      <tspan class="dim" x="800" text-anchor="end">agent-v2-new</tspan>
+    </text>
+  </g>
+
+  <!-- rows -->
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.38;0.41;0.92;1"/>
+    <text y="309">
+      <tspan class="white" x="30">Use uv, never pip install</tspan>
+      <tspan class="green" x="650" text-anchor="end">100%</tspan>
+      <tspan class="red" x="800" text-anchor="end">0%</tspan>
+      <tspan class="red" x="808">⬇</tspan>
+    </text>
+  </g>
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.42;0.45;0.92;1"/>
+    <text y="336">
+      <tspan class="white" x="30">Always run pytest before finishing</tspan>
+      <tspan class="green" x="650" text-anchor="end">100%</tspan>
+      <tspan class="red" x="800" text-anchor="end">0%</tspan>
+      <tspan class="red" x="808">⬇</tspan>
+    </text>
+  </g>
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.46;0.49;0.92;1"/>
+    <text y="363">
+      <tspan class="white" x="30">No print() debug in the diff</tspan>
+      <tspan class="green" x="650" text-anchor="end">100%</tspan>
+      <tspan class="orng" x="800" text-anchor="end">33%</tspan>
+      <tspan class="red" x="808">⬇</tspan>
+    </text>
+  </g>
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.50;0.53;0.92;1"/>
+    <text y="390">
+      <tspan class="white" x="30">Never edit files under migrations/</tspan>
+      <tspan class="green" x="650" text-anchor="end">100%</tspan>
+      <tspan class="green" x="800" text-anchor="end">100%</tspan>
+    </text>
+  </g>
+
+  <!-- regressions callout -->
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.55;0.58;0.92;1"/>
+    <text class="red b" x="30" y="430">⚠ Silently dropped after the upgrade</text>
+  </g>
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.59;0.62;0.92;1"/>
+    <text y="457"><tspan class="red" x="50">•</tspan><tspan class="white" x="72">use uv, never pip install</tspan><tspan class="dim">  →  ran `pip install requests`</tspan></text>
+  </g>
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.63;0.66;0.92;1"/>
+    <text y="484"><tspan class="red" x="50">•</tspan><tspan class="white" x="72">always run pytest</tspan><tspan class="dim">  →  never ran pytest</tspan></text>
+  </g>
+
+  <!-- cost punchline -->
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.68;0.71;0.92;1"/>
+    <text class="yel" x="30" y="520">↳ new agent: 2.4× more tokens per success — and cheaper per token hid it.</text>
+  </g>
+
+  <!-- footer -->
+  <g>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.72;0.75;0.92;1"/>
+    <text class="dim" x="30" y="552" font-size="15">deterministic · reproducible · scoring never calls a model</text>
+  </g>
+</svg>

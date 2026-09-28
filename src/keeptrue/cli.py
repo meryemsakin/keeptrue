@@ -24,6 +24,10 @@ def _demo_dir() -> Path:
 
 
 def _run_report(config_path: str, runs_dir: str, note: str | None = None, console=None) -> int:
+    if not Path(config_path).exists():
+        print(f"config not found: {config_path}\n"
+              f"Run `keeptrue init` to create one, or pass --config.", file=sys.stderr)
+        return 1
     scenario, rules, prices = load_config(config_path)
     trajs = load_runs(runs_dir)
     if not trajs:
@@ -70,7 +74,8 @@ def build_parser() -> argparse.ArgumentParser:
     d.set_defaults(func=_cmd_demo)
 
     c = sub.add_parser("check", help="score your own runs against a keeptrue.yaml")
-    c.add_argument("--config", required=True, help="path to keeptrue.yaml")
+    c.add_argument("--config", default="keeptrue.yaml",
+                   help="path to keeptrue.yaml (default: ./keeptrue.yaml)")
     c.add_argument("--runs", required=True, help="directory of run JSON files")
     c.set_defaults(func=_cmd_check)
 
