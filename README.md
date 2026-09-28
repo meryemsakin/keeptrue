@@ -17,16 +17,17 @@ it ran, the files it touched, the message it ended with — and scores each rule
 as a **pass rate across runs**. No vibes, no eyeballing one transcript. It's
 the diff you can't see today: *which of my instructions regressed.*
 
+![keeptrue — you upgraded your coding agent; which rules did it silently stop following?](docs/demo-animated.svg)
+
 ```bash
-pipx install keeptrue   # or: pip install keeptrue
-keeptrue demo           # no API key, no cost — scores bundled example runs
+# no API key, no cost — scores bundled illustrative runs:
+pipx run --spec git+https://github.com/meryemsakin/keeptrue keeptrue demo
+# once on PyPI:  pipx install keeptrue && keeptrue demo
 ```
 
-![keeptrue demo — the new agent silently stopped following pip→uv and pytest rules](docs/demo.svg)
-
-The same agent, upgraded, silently stopped following its `pip`→`uv` rule and
-stopped running tests — 0% adherence on both, while the cost dashboard would
-only have shown it got *cheaper per token*. That gap is the whole point.
+The same agent, upgraded, silently stopped following its `pip`→`uv` and
+`pytest` rules — 0% adherence on both — while your tests still pass and the cost
+dashboard only shows it got *cheaper per token*. That gap is the whole point.
 
 
 > The `demo` uses recorded, illustrative runs bundled with the tool, so it works
@@ -79,12 +80,17 @@ always reproducible and traceable to the exact command or line that broke the
 rule. (Fuzzy rules that can't be pinned to a signal are handled by an optional
 LLM judge, off by default.)
 
+Here's the full report `keeptrue demo` prints — all eight rules, the regressions
+callout, and the cost/reliability table:
+
+![The full keeptrue report: per-rule adherence across two models, a silently-dropped-rules callout, and tokens-per-success](docs/demo.svg)
+
 ## Score your own agent
 
 ```bash
-keeptrue init                                   # writes a starter keeptrue.yaml
+keeptrue init                       # writes a starter keeptrue.yaml
 # record runs as JSON (see docs/trajectory-format.md)
-keeptrue check --config keeptrue.yaml --runs ./runs
+keeptrue check --runs ./runs        # --config defaults to ./keeptrue.yaml
 ```
 
 A run is just:
