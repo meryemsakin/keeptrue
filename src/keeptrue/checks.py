@@ -18,6 +18,15 @@ def _commands(t: Trajectory) -> list[str]:
     return [s.command for s in t.steps if s.command]
 
 
+def _quote(value: str, match: re.Match, field: str) -> str:
+    """Quote what matched: for a diff, the matching line, not the change's first line."""
+    if field != "diff":
+        return value[:400]
+    start = value.rfind("\n", 0, match.start()) + 1
+    end = value.find("\n", match.end())
+    return (value[start:] if end == -1 else value[start:end])[:400]
+
+
 def _match_signal(check: Check, t: Trajectory, field: str, required: bool) -> CheckOutcome:
     """Use confirmed evidence; an errored edit may have made no or partial changes."""
     pat = re.compile(check.params["pattern"], re.MULTILINE if field == "diff" else 0)
@@ -27,7 +36,8 @@ def _match_signal(check: Check, t: Trajectory, field: str, required: bool) -> Ch
         if tools is not None and step.tool not in tools:
             continue
         value = getattr(step, field)
-        if not value or not pat.search(value):
+        match = pat.search(value) if value else None
+        if match is None:
             continue
         confirmed = step.result in ("recorded", "ok") or (
             field == "command" and step.exit_code is not None
@@ -35,7 +45,7 @@ def _match_signal(check: Check, t: Trajectory, field: str, required: bool) -> Ch
         if not confirmed:
             uncertain = True
             continue
-        return CheckOutcome(required, f"{field} matched: {value[:400]}")
+        return CheckOutcome(required, f"{field} matched: {_quote(value, match, field)}")
     if uncertain:
         return CheckOutcome(None, f"unconfirmed {field} evidence; inspect the tool result")
     return CheckOutcome(not required, f"no confirmed {field} matched /{check.params['pattern']}/")

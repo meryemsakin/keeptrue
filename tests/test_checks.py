@@ -67,3 +67,11 @@ def test_unknown_kind_is_reported_not_raised():
     out = run_check(Check("does_not_exist", {}), traj())
     assert not out.passed
     assert "unknown check kind" in out.evidence
+
+
+def test_diff_evidence_quotes_the_matching_line():
+    diff = "+def handler(x):\n+    y = x\n+    print('debug', y)\n+    return y"
+    out = run_check(Check("forbidden_in_diff", {"pattern": r"^\+.*(?<![.\w])print\("}),
+                    traj(steps=[Step(diff=diff)]))
+    assert out.passed is False
+    assert out.evidence == "diff matched: +    print('debug', y)"

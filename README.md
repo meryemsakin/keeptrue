@@ -79,7 +79,7 @@ followed, here, now, after this upgrade."**
    | "always run pytest" | `required_command: \bpytest\b` |
    | "never edit migrations/" | `forbidden_path: (^\|/)migrations/`, with `tools: [edit]` |
    | "summary under 80 words" | `max_final_length: 80 words` |
-   | "no debug prints" | `forbidden_in_diff: ^\+.*\bprint\(` |
+   | "no debug prints" | `forbidden_in_diff: ^\+.*(?<![.\w])print\(` (bare `print(`, not `console.print(`) |
    | "don't repeat an identical command 3 times" | `no_repeat_loops: 3` |
 
 2. **Runs → evidence.** You record what the agent did as small JSON files (one
@@ -95,10 +95,10 @@ which recorded signal matched a check. Reproducibility does not guarantee
 semantic correctness: `echo pytest` still matches a broad `pytest` regex.
 An optional LLM judge is planned and is not implemented.
 
-Here's the full report `keeptrue demo` prints — all eight rules, the regressions
+Here's the full report `keeptrue demo` prints — all eight rules, the observed-drops
 callout, and the cost/reliability table:
 
-![The full keeptrue report: per-rule adherence across two models, a silently-dropped-rules callout, and tokens-per-success](docs/demo.svg)
+![The full keeptrue report: per-rule adherence with n/? counts across two models, an observed-adherence-drops callout, and tokens-per-success](docs/demo.svg)
 
 ## Score your own agent
 
