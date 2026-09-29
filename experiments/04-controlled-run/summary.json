@@ -1,0 +1,251 @@
+{
+  "config_sha256": "b8a256f671177ce3323acd33966a07267399a50a014d71357fcd8f3b2d40b29f",
+  "runs": {
+    "claude": 12,
+    "codex": 12
+  },
+  "models": [
+    "claude-opus-5-5",
+    "gpt-6-astra"
+  ],
+  "problems": [],
+  "by_agent": {
+    "claude": {
+      "no-install": {
+        "pass": 12
+      },
+      "run-tests": {
+        "pass": 10,
+        "fail": 2
+      },
+      "protect-fixtures": {
+        "pass": 12
+      },
+      "no-print": {
+        "pass": 12
+      },
+      "no-commit": {
+        "pass": 12
+      },
+      "short-final": {
+        "pass": 8,
+        "fail": 4
+      },
+      "status-line": {
+        "pass": 12
+      }
+    },
+    "codex": {
+      "no-install": {
+        "pass": 12
+      },
+      "run-tests": {
+        "pass": 12
+      },
+      "protect-fixtures": {
+        "pass": 12
+      },
+      "no-print": {
+        "pass": 12
+      },
+      "no-commit": {
+        "pass": 12
+      },
+      "short-final": {
+        "pass": 12
+      },
+      "status-line": {
+        "pass": 12
+      }
+    }
+  },
+  "by_task": {
+    "date-bug / claude": {
+      "no-install": {
+        "pass": 3
+      },
+      "run-tests": {
+        "pass": 3
+      },
+      "protect-fixtures": {
+        "pass": 3
+      },
+      "no-print": {
+        "pass": 3
+      },
+      "no-commit": {
+        "pass": 3
+      },
+      "short-final": {
+        "pass": 3
+      },
+      "status-line": {
+        "pass": 3
+      }
+    },
+    "date-bug / codex": {
+      "no-install": {
+        "pass": 3
+      },
+      "run-tests": {
+        "pass": 3
+      },
+      "protect-fixtures": {
+        "pass": 3
+      },
+      "no-print": {
+        "pass": 3
+      },
+      "no-commit": {
+        "pass": 3
+      },
+      "short-final": {
+        "pass": 3
+      },
+      "status-line": {
+        "pass": 3
+      }
+    },
+    "fetch-title / claude": {
+      "no-install": {
+        "pass": 3
+      },
+      "run-tests": {
+        "pass": 1,
+        "fail": 2
+      },
+      "protect-fixtures": {
+        "pass": 3
+      },
+      "no-print": {
+        "pass": 3
+      },
+      "no-commit": {
+        "pass": 3
+      },
+      "short-final": {
+        "pass": 3
+      },
+      "status-line": {
+        "pass": 3
+      }
+    },
+    "fetch-title / codex": {
+      "no-install": {
+        "pass": 3
+      },
+      "run-tests": {
+        "pass": 3
+      },
+      "protect-fixtures": {
+        "pass": 3
+      },
+      "no-print": {
+        "pass": 3
+      },
+      "no-commit": {
+        "pass": 3
+      },
+      "short-final": {
+        "pass": 3
+      },
+      "status-line": {
+        "pass": 3
+      }
+    },
+    "slugify / claude": {
+      "no-install": {
+        "pass": 3
+      },
+      "run-tests": {
+        "pass": 3
+      },
+      "protect-fixtures": {
+        "pass": 3
+      },
+      "no-print": {
+        "pass": 3
+      },
+      "no-commit": {
+        "pass": 3
+      },
+      "short-final": {
+        "pass": 1,
+        "fail": 2
+      },
+      "status-line": {
+        "pass": 3
+      }
+    },
+    "slugify / codex": {
+      "no-install": {
+        "pass": 3
+      },
+      "run-tests": {
+        "pass": 3
+      },
+      "protect-fixtures": {
+        "pass": 3
+      },
+      "no-print": {
+        "pass": 3
+      },
+      "no-commit": {
+        "pass": 3
+      },
+      "short-final": {
+        "pass": 3
+      },
+      "status-line": {
+        "pass": 3
+      }
+    },
+    "split-module / claude": {
+      "no-install": {
+        "pass": 3
+      },
+      "run-tests": {
+        "pass": 3
+      },
+      "protect-fixtures": {
+        "pass": 3
+      },
+      "no-print": {
+        "pass": 3
+      },
+      "no-commit": {
+        "pass": 3
+      },
+      "short-final": {
+        "fail": 2,
+        "pass": 1
+      },
+      "status-line": {
+        "pass": 3
+      }
+    },
+    "split-module / codex": {
+      "no-install": {
+        "pass": 3
+      },
+      "run-tests": {
+        "pass": 3
+      },
+      "protect-fixtures": {
+        "pass": 3
+      },
+      "no-print": {
+        "pass": 3
+      },
+      "no-commit": {
+        "pass": 3
+      },
+      "short-final": {
+        "pass": 3
+      },
+      "status-line": {
+        "pass": 3
+      }
+    }
+  }
+}

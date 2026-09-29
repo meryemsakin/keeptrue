@@ -38,8 +38,11 @@ COMMANDS = {
     "claude": lambda run_dir, prompt: [
         BINARIES["claude"], "-p", prompt, "--allowedTools", "Read,Edit,Write,Glob,Grep,Bash",
         "--output-format", "json"],
+    # `-a never` + workspace-write is what `exec --full-auto` meant before newer
+    # CLIs dropped that flag. AGENTS.md discovery stays native, as shipped.
     "codex": lambda run_dir, prompt: [
-        BINARIES["codex"], "exec", "--full-auto", "-C", str(run_dir), prompt],
+        BINARIES["codex"], "-a", "never", "exec", "--sandbox", "workspace-write",
+        "-C", str(run_dir), prompt],
 }
 MODEL_FLAG = {"claude": "--model", "codex": "-m"}
 
@@ -73,6 +76,8 @@ def main() -> int:
     parser.add_argument("--tasks", nargs="*", help="task ids to run (default: all)")
     parser.add_argument("--timeout", type=int, default=900, help="seconds per run")
     parser.add_argument("--model", help="pin the agent's model (default: the CLI's own default)")
+    parser.add_argument("--stop-on-failure", action="store_true",
+                        help="stop after the first run that exits non-zero (e.g. a usage limit)")
     args = parser.parse_args()
 
     if shutil.which(BINARIES[args.agent]) is None:
@@ -106,6 +111,9 @@ def main() -> int:
             with manifest.open("a") as f:
                 f.write(json.dumps(record) + "\n")
             print(f"{run_dir.name}: exit={code} in {record['seconds']}s", flush=True)
+            if args.stop_on_failure and code != 0:
+                print("stopping after a failed run (--stop-on-failure)", flush=True)
+                return 1
     return 0
 
 
