@@ -5,56 +5,69 @@
 ![Python](https://img.shields.io/pypi/pyversions/keeptrue.svg)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Measure your coding agent's instructions against recorded evidence and task outcomes.**
+**Does your coding agent actually follow your AGENTS.md? keeptrue checks, from the session logs Claude Code and Codex already write.**
 
-You wrote an `AGENTS.md` (or `CLAUDE.md`, or a system prompt) telling your agent
-to run the tests, use `uv` not `pip`, keep summaries short, never touch
-`migrations/`. Then you upgraded the model. Are those rules still being
-followed — or did some of them silently stop working?
+![Same AGENTS.md, same 4 tasks, 12 runs each. Both agents obeyed every prohibition; Claude Code skipped the tests in 2 runs and ran over the word limit in 4.](docs/exp04-results.svg)
 
-`keeptrue` reads recorded tool evidence — commands, file edits, and the last
-assistant response — and scores each check as a **pass rate across decidable
-runs**, with unknown evidence counted separately. Changes in these rates help
-identify what to inspect; they do not by themselves prove a model regression.
+We gave [Claude Code and Codex the same AGENTS.md and the same four tasks, 12 runs each](experiments/04-controlled-run/):
+
+- **Every "never" rule held in all 24 runs.** When a task needed a package that
+  wasn't installed, all six runs stopped with `STATUS: blocked` instead of
+  installing it.
+- **Rules interact.** After stopping for the missing package, Claude Code
+  skipped "run the tests before finishing" in 2 of 3 runs. Codex ran them
+  every time.
+- **Length rules bend.** Claude Code's final message went past the 120-word
+  limit in 4 of 12 runs. Codex's stayed between 36 and 53 words.
+
+It's a small pilot on a synthetic repo, not a benchmark; the
+[write-up](experiments/04-controlled-run/) lists every limit.
+
+## Try it on your own sessions
+
+```bash
+pipx install git+https://github.com/meryemsakin/keeptrue  # or: pip install git+…
+keeptrue init --from AGENTS.md   # turn your rules into deterministic checks
+keeptrue scan --agent all        # score this repo's Claude Code and Codex sessions
+```
+
+No API key and no model calls: keeptrue reads the JSONL logs the agents already
+wrote. `keeptrue demo` shows a report on bundled example data.
+
+## Checked against its own mistakes
+
+Each score comes from deterministic checks over recorded evidence, and
+unconfirmed evidence counts as unknown rather than as a pass. Real sessions have
+already caught keeptrue out: a [first audit](experiments/02-real-session-audit/)
+found two false passes (rejected commands counted as run, and a system notice
+mistaken for the final answer), and a
+[first cross-agent scan](experiments/03-cross-agent-heredoc/) got three cells
+wrong because analysis scripts quoted rule patterns inside heredocs. Both are
+fixed and covered by tests.
 
 Two workflows answer different questions:
 
-- **`scan` / `audit`**: what recorded actions match your checks, and where do
+- **`scan` / `audit`**: which recorded actions match your checks, and where do
   those checks disagree with reviewed evidence? Offline, no new model calls.
-- **`ablate` (experimental)**: how do externally verified task outcomes change
-  when one selected instruction block is removed? Freeze a task pack, run bounded
-  paired experiments, and export local HTML/JSON reports. This does not identify
-  instructions that are safe to delete. See the [experiment guide](docs/instruction-experiments.md)
-  and its free synthetic pipeline demo. [Validation status](docs/validation-status.md)
-  separates completed checks from the evidence still needed before release.
+- **`ablate`** (experimental): how do externally verified task outcomes change
+  when one selected instruction block is removed? It freezes a task pack, runs
+  bounded paired experiments and exports local HTML/JSON reports. It does not
+  identify instructions that are safe to delete. See the
+  [experiment guide](docs/instruction-experiments.md) and
+  [validation status](docs/validation-status.md).
 
-**First real-session pilot:** reviewing one development session uncovered two
-false passes in keeptrue itself: rejected commands were counted as executed,
-and a synthetic session-limit notice replaced the real final response. Both
-are addressed in this revision. The [case study](experiments/02-real-session-audit/)
-includes before/after results, the remaining applicability false alarm, and
-reproduction instructions. It is a retrospective, agent-reviewed pilot on one
-private session, not independent validation or a model benchmark. A first
-[Codex vs Claude Code scan](experiments/03-cross-agent-heredoc/) of the same repo
-then got three Codex cells wrong, because analysis scripts quoted the rule
-patterns inside heredocs; command checks now ignore that data.
+## What a report looks like
 
 ![keeptrue demo — observed adherence drops, with decidable-run and unknown counts](docs/demo-animated.svg)
 
-```bash
-# no API key, no cost — scores bundled illustrative runs:
-pipx run --spec git+https://github.com/meryemsakin/keeptrue keeptrue demo
-# once on PyPI:  pipx install keeptrue && keeptrue demo
-```
+The animation replays `keeptrue demo`: two illustrative groups in which the
+`pip`→`uv` and `pytest` checks drop from 100% to 0%, each with nine decidable
+runs and zero unknowns. The full terminal report is further down.
 
-In this **bundled example**, the `pip`→`uv` and `pytest` checks drop from 100% to
-0% across two illustrative groups, each with nine decidable runs and zero
-unknowns. The animation shows selected rows; the full terminal report is below.
-
-> ⚠️ The demo runs are **illustrative** — hand-authored to show the failure
+> ⚠️ The demo runs are **illustrative**: hand-authored to show the failure
 > mode, not captured from a real model. The numbers that matter are the ones
-> `keeptrue check` produces on **your** runs, checked against reference labels
-> using [`keeptrue audit`](docs/reference-audit.md).
+> keeptrue produces on **your** runs, checked against reference labels with
+> [`keeptrue audit`](docs/reference-audit.md).
 
 ## Why this exists
 
