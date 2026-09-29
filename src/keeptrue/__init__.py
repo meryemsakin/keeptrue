@@ -6,4 +6,4 @@ The core is deterministic: every check runs over a recorded agent trajectory
 pass/fail. No model is needed to *score* a run, only to *produce* one.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
