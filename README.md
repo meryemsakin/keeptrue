@@ -26,7 +26,7 @@ It's a small pilot on a synthetic repo, not a benchmark; the
 ## Try it on your own sessions
 
 ```bash
-pipx install git+https://github.com/meryemsakin/keeptrue  # or: pip install git+…
+pipx install keeptrue            # or: pip install keeptrue
 keeptrue init --from AGENTS.md   # turn your rules into deterministic checks
 keeptrue scan --agent all        # score this repo's Claude Code and Codex sessions
 ```
