@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-29
+
+First release on PyPI.
+
 ### Added
 - Experimental `ablate plan/run/report`: explicit instruction units, frozen Git
   snapshots and standalone verifiers, replicate-specific identities, bounded
@@ -66,4 +70,5 @@ Initial release.
   baseline model, and a cost/reliability table (tokens- and $-per-success).
 - Trajectory format documented in `docs/trajectory-format.md`.
 
-[0.1.0]: https://github.com/meryemsakin/keeptrue/releases/tag/v0.1.0
+[0.2.0]: https://github.com/meryemsakin/keeptrue/releases/tag/v0.2.0
+[0.1.0]: https://github.com/meryemsakin/keeptrue/commit/9ee482b

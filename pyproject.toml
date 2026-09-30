@@ -1,12 +1,12 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-fancy-pypi-readme"]
 build-backend = "hatchling.build"
 
 [project]
 name = "keeptrue"
-version = "0.1.0"
+version = "0.2.0"
 description = "Measure whether your coding agent actually follows the rules in AGENTS.md / CLAUDE.md."
-readme = "README.md"
+dynamic = ["readme"]
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Meryem Sakin", email = "meryemmsakinn@gmail.com" }]
@@ -36,6 +36,27 @@ Issues = "https://github.com/meryemsakin/keeptrue/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/keeptrue"]
+
+# PyPI can't resolve the README's repo-relative images and links, so the copy
+# published there points them at GitHub. The README on GitHub is unchanged.
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '!\[([^\]]*)\]\((?!https?://)([^)]+)\)'
+replacement = '![\1](https://raw.githubusercontent.com/meryemsakin/keeptrue/main/\2)'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(?<!!)\[([^\]]*)\]\((?!https?://|#|mailto:)([^)]+)\)'
+replacement = '[\1](https://github.com/meryemsakin/keeptrue/blob/main/\2)'
+
+# A link wrapped around a badge image, e.g. [![License](…)](LICENSE)
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\)\]\((?!https?://|#|mailto:)([^)]+)\)'
+replacement = ')](https://github.com/meryemsakin/keeptrue/blob/main/\1)'
 
 [tool.pytest.ini_options]
 # experiments/04 ships a sandbox project whose tests fail on purpose
